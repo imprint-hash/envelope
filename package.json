@@ -1,0 +1,11 @@
+{
+  "name": "mezo-link",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "ethers": "6.13.4"
+  }
+}

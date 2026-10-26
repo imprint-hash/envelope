@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#faf6f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141110" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="My links">
+  <title>My links</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e6004f'/%3E%3Ctext x='32' y='44' font-size='34' font-family='system-ui,sans-serif' font-weight='800' text-anchor='middle' fill='white'%3E%24%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <a class="skip" href="#app">Skip to content</a>
+  <header class="top">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">$</span><span data-appname>&nbsp;</span></a>
+    <span class="net-pill">Testnet</span>
+  </header>
+  <main>
+    <div id="app" class="app" aria-live="polite">
+      <noscript><p class="card">Please turn on JavaScript to use this page.</p></noscript>
+    </div>
+
+  </main>
+  <nav class="foot" aria-label="Main">
+    <a href="/" data-nav="send">Send</a>
+    <span aria-hidden="true">·</span>
+    <a href="/links" data-nav="links">My links</a>
+
+  </nav>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha384-6Zl0Pc8zjSz8KvmNeXRvUQgY4ryFb+BwDvKCmLYcBME0joAaru491tQgi9B7zsMM" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script type="module" src="/js/links.js"></script>
+</body>
+</html>

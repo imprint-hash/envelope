@@ -1,0 +1,10 @@
+{
+  "outputDirectory": "public",
+  "cleanUrls": true,
+  "functions": { "api/claim.mjs": { "maxDuration": 30 } },
+  "headers": [{ "source": "/(.*)", "headers": [
+    { "key": "Referrer-Policy", "value": "no-referrer" },
+    { "key": "X-Content-Type-Options", "value": "nosniff" },
+    { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://rpc.test.mezo.org; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'" }
+  ]}]
+}
