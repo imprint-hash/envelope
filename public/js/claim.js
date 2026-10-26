@@ -58,9 +58,8 @@ async function start() {
   const status = Number(d.status);
   if (status === STATUS.None) return render(root, errorCard(ERRORS.NotFound));
   if (status === STATUS.Claimed) return showClaimed(parsed.id);
-  if (status === STATUS.Refunded || now >= BigInt(d.expiresAt)) {
-    return render(root, errorCard("This link has expired and the money went back to the sender."));
-  }
+  if (status === STATUS.Refunded) return render(root, errorCard("This link has expired and the money went back to the sender."));
+  if (now >= BigInt(d.expiresAt)) return render(root, errorCard("This link has expired. The sender can take the money back. Ask them to send a new one."));
   let linkAddr;
   try { linkAddr = new ethers.Wallet(parsed.pk).address; } catch { linkAddr = null; }
   if (!linkAddr || linkAddr !== ethers.getAddress(d.link)) return render(root, errorCard(ERRORS.BadSignature));

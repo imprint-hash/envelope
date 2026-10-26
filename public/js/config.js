@@ -1,5 +1,5 @@
 // The one place to rename the product.
-export const APPNAME = "APPNAME";
+export const APPNAME = "Envelope";
 
 export const CHAIN = {
   id: 31611,
@@ -9,7 +9,7 @@ export const CHAIN = {
   explorer: "https://explorer.test.mezo.org",
 };
 
-// TODO(after deploy): paste the deployed LinkEscrow address here (public, safe to commit).
+// The deployed LinkEscrow on Mezo testnet (public, safe to commit).
 export const ESCROW_ADDRESS = "0x2330b264BF90E94F4926fD819c1281F799005c01";
 
 export const MUSD = "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503";

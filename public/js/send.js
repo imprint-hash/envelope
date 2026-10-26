@@ -140,7 +140,6 @@ async function doSend(account, amount, note) {
         await atx.wait();
         render(root, busy("Step 2 of 2: sending..."));
         tx = await escrow.create(linkKey.address, amount, note);
-        render(root, busy(`Locking your ${amtText} into a link...`));
       }
     }
     const receipt = await tx.wait();
