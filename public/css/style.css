@@ -224,3 +224,6 @@ input[type="text"]:focus-visible { outline: 3px solid var(--brand); outline-offs
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; scroll-behavior: auto !important; }
   .spinner { animation: none; border-top-color: var(--accent); border-right-color: var(--accent); }
 }
+
+.cashout .steps { margin: 8px 0 12px; padding-left: 20px; display: grid; gap: 4px; }
+.cashout { margin-top: 16px; }

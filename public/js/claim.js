@@ -161,7 +161,30 @@ async function showDone(amount, recipient, txHash, mode) {
     h("p", { class: "muted small" }, "Sent to ", h("code", {}, shortAddr(recipient))),
     txHash ? h("a", { class: "btn btn-secondary", href: `${CHAIN.explorer}/tx/${txHash}`, target: "_blank", rel: "noopener noreferrer" }, "View on explorer") : null,
   ));
+  root.append(await cashOutCard(amount));
   if (mode === "local") renderWallet(true, "Keep this money safe: save your recovery phrase.");
+}
+
+// ---------- Cash out to a bank (route chosen by the recipient's country) ----------
+async function cashOutCard(amount) {
+  const usd = Number(ethers.formatUnits(amount, 18));
+  let r;
+  try {
+    r = await (await fetch(`/api/cashout?amount=${usd}`)).json();
+  } catch { return h("span"); }
+  if (!r?.ok) return h("span");
+  if (!r.supported) return h("section", { class: "card cashout" }, h("h2", {}, "Cash out to your bank"), h("p", { class: "muted" }, r.message));
+  const money = r.receive != null
+    ? new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency }).format(r.receive)
+    : r.currency;
+  return h("section", { class: "card cashout" },
+    h("h2", {}, "Cash out to your bank"),
+    h("p", { class: "lead" }, "About ", h("strong", {}, money), ` to your account by ${r.rail}.`),
+    h("ol", { class: "steps" }, ...r.steps.map((s) => h("li", {}, s))),
+    h("p", { class: "muted small" }, `Paid out by ${r.partner} (${r.partnerWhy}). Estimate includes about ${r.feePct}% in fees.`),
+    h("button", { class: "btn btn-secondary", type: "button", disabled: !r.live }, r.live ? `Cash out with ${r.partner}` : "Available with mainnet MUSD"),
+    r.live ? null : h("p", { class: "muted small" }, r.message),
+  );
 }
 
 async function showClaimed(id) {
