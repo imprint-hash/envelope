@@ -132,7 +132,6 @@ async function showForm(account, errorText) {
     ),
     msg,
     sendBtn,
-    h("p", { class: "trust" }, "Open-source escrow on Mezo · Link works once · No app needed"),
   );
   render(root, form);
   validate();
