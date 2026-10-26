@@ -184,6 +184,7 @@ async function showDone(amount, recipient, txHash, mode) {
     h("p", { class: "muted small" }, "Sent to ", h("code", {}, shortAddr(recipient))),
     txHash ? h("a", { class: "btn btn-secondary", href: `${CHAIN.explorer}/tx/${txHash}`, target: "_blank", rel: "noopener noreferrer" }, "View on explorer") : null,
   ));
+  confetti();
   root.append(await cashOutCard(amount));
   if (mode === "local") renderWallet(true, "Keep this money safe: save your recovery phrase.");
 }
@@ -271,3 +272,31 @@ function renderWallet(open, headline) {
 
 window.addEventListener("hashchange", start);
 start();
+
+// A short burst of Mezo-pink confetti when the money lands.
+function confetti() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = document.createElement("canvas");
+  c.className = "confetti";
+  c.setAttribute("aria-hidden", "true");
+  document.body.append(c);
+  const ctx = c.getContext("2d");
+  const W = (c.width = innerWidth), H = (c.height = innerHeight);
+  const colours = ["#ff0a5c", "#ff5c93", "#ffffff", "#ffd1e1", "#ffb870"];
+  const bits = Array.from({ length: 160 }, () => ({
+    x: W / 2 + (Math.random() - 0.5) * 80, y: H * 0.35,
+    vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+    c: colours[(Math.random() * colours.length) | 0],
+  }));
+  const end = performance.now() + 3200;
+  (function frame(t) {
+    ctx.clearRect(0, 0, W, H);
+    for (const b of bits) {
+      b.vy += 0.35; b.vx *= 0.99; b.x += b.vx; b.y += b.vy; b.r += b.vr;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.r); ctx.fillStyle = b.c;
+      ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); ctx.restore();
+    }
+    if (t < end) requestAnimationFrame(frame); else c.remove();
+  })(performance.now());
+}

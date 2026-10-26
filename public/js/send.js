@@ -262,7 +262,15 @@ function showAccount(account) {
   const bar = document.querySelector(".top-in");
   if (!bar) return;
   bar.querySelector(".acct")?.remove();
-  bar.append(h("span", { class: "acct", title: account }, h("span", { class: "acct-dot", "aria-hidden": "true" }), `Connected ${account.slice(0, 6)}…${account.slice(-4)}`));
+  bar.append(h("span", { class: "acct", title: account }, h("span", { class: "acct-dot", "aria-hidden": "true" }), `Connected ${account.slice(0, 6)}…${account.slice(-4)}`,
+    h("button", { class: "acct-out", type: "button", onclick: disconnect }, "Disconnect")));
+}
+
+// Drops this site's permission in MetaMask, so the next visit asks to connect again.
+async function disconnect() {
+  stopWatch();
+  try { await window.ethereum.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] }); } catch { /* older wallets: just reload */ }
+  location.reload();
 }
 
 let watcher = null;
