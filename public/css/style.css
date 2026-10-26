@@ -1,25 +1,25 @@
-/* Cool lavender-white surfaces, one Mezo pink accent (layout after the user's Stitch reference). */
+/* Black with one Mezo pink accent (layout after the user's Stitch reference). */
 :root {
-  --bg: #f9f9ff;
-  --surface: #ffffff;
-  --surface-2: #f1f3ff;
-  --surface-3: #e9edff;
-  --ink: #141b2b;
-  --muted: #5b6275;
-  --line: #e1e5f5;
+  --bg: #0a0a0c;
+  --surface: #141418;
+  --surface-2: #1c1c22;
+  --surface-3: #25252d;
+  --ink: #f6f6f8;
+  --muted: #a0a0ab;
+  --line: #2c2c35;
   --brand: #ff0a5c;          /* Mezo pink */
-  --accent: #e0004f;         /* filled buttons: white text passes AA */
+  --accent: #ff1f6b;
   --accent-deep: #b8003f;
   --accent-ink: #ffffff;
-  --accent-soft: #ffe4ee;
-  --ok: #0e7a4a;   --ok-soft: #dcf7e8;
-  --warn: #8a4b00; --warn-soft: #fff0e2;
-  --err: #ba1a1a;  --err-soft: #ffdad6;
+  --accent-soft: #3a0f22;
+  --ok: #5fe3a1;   --ok-soft: #0f2a1d;
+  --warn: #ffb870; --warn-soft: #2e1e0e;
+  --err: #ff8f86;  --err-soft: #34130f;
   --radius: 24px;
-  --shadow: 0 1px 2px rgba(20, 27, 43, .04), 0 12px 32px -16px rgba(20, 27, 43, .16);
+  --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 18px 40px -20px rgba(0,0,0,.9);
   --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -327,7 +327,7 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
 .share b { display: block; font-size: .95rem; }
 .share small { color: var(--muted); font-size: .8rem; }
 .share-ic { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface); font-size: 1.1rem; }
-.share-wa { background: #e3f8ea; }
+.share-wa { background: #0f2a1d; }
 .share-wa .share-ic { background: #25d366; }
 .easy-box { background: var(--surface-2); border-radius: 18px; padding: 16px 18px; }
 .easy-box p { margin: 0; color: var(--muted); }
@@ -393,3 +393,8 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
   .amount-box .amount-input { font-size: 2.8rem !important; }
 }
 .top { display: block; }
+
+.btn-primary { box-shadow: 0 12px 30px -12px rgba(255, 31, 107, .7); }
+.banner { background: linear-gradient(90deg, #1c0a12, var(--surface-2)); border: 1px solid var(--line); }
+.top { background: rgba(10,10,12,.85); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 5; }
+.voucher { box-shadow: 0 20px 50px -24px rgba(255, 10, 92, .8); }
