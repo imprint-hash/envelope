@@ -438,3 +438,6 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
 
 /* summary rows like the reference history list */
 .summary { background: var(--surface-2); border: 1px solid var(--line); }
+.acct { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 700; padding: 8px 14px; border-radius: 999px; background: var(--surface-3); color: var(--ink); white-space: nowrap; }
+.acct-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+@media (max-width: 640px) { .acct { display: none; } }

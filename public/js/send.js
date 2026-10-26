@@ -134,6 +134,7 @@ async function showForm(account, errorText) {
     sendBtn,
   );
   render(root, form);
+  showAccount(account);
   validate();
   if (!errorText) amountIn.focus();
 }
@@ -254,6 +255,14 @@ function showDone(account, amount, note, url, hash, id, name) {
       h("ol", { class: "timeline" }, ...steps)),
   );
   watch(id);
+}
+
+// Connected wallet, shown in the header so it's clear you're signed in.
+function showAccount(account) {
+  const bar = document.querySelector(".top-in");
+  if (!bar) return;
+  bar.querySelector(".acct")?.remove();
+  bar.append(h("span", { class: "acct", title: account }, h("span", { class: "acct-dot", "aria-hidden": "true" }), `Connected ${account.slice(0, 6)}…${account.slice(-4)}`));
 }
 
 let watcher = null;
