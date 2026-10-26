@@ -9,6 +9,13 @@ Your cousin in Houston sends $50 in MUSD. Your mum gets a WhatsApp message with 
 - **Escrow contract:** [`0x2330b264BF90E94F4926fD819c1281F799005c01`](https://explorer.test.mezo.org/address/0x2330b264BF90E94F4926fD819c1281F799005c01) on Mezo testnet (chain 31611)
 - **Token:** testnet MUSD [`0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`](https://explorer.test.mezo.org/address/0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503)
 
+## Proof it works (Mezo testnet)
+
+A real envelope, sent from MetaMask on a laptop and claimed on a phone from WhatsApp, with the fee paid by the relayer:
+
+- Envelope #1 created (100 MUSD, permit + create in one transaction): [`0xf6f3b976…`](https://explorer.test.mezo.org/tx/0xf6f3b97655d491f7075631c9317bf2cb457932c4bb926c72cdc5bcb4f59eff5c)
+- Envelope #1 claimed by a brand-new phone wallet, gas paid by the relayer: [`0x120b9ca5…`](https://explorer.test.mezo.org/tx/0x120b9ca57a235ab7432f89164956139f0e675f6406aa2e7d7e45d98a48addcb3)
+
 ## Why
 
 Most people who could use a Bitcoin-backed dollar will first meet it as a payment from someone else. Today that only works if they already have a wallet, know what network they are on, and hold BTC for fees. Envelope removes all three: the person receiving needs nothing but a phone and a link. Every claimed envelope is a new MUSD holder on Mezo.
