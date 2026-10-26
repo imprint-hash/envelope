@@ -69,24 +69,47 @@ async function start() {
 
 function showReady(parsed, d, note, now, errorText) {
   const amount = d.amount;
-  render(root, h("section", { class: "card ticket" },
-    h("div", { class: "ticket-top" },
-      h("p", { class: "eyebrow" }, "Someone sent you"),
-      h("p", { class: "big-amount", "aria-label": `${fmtUsd(amount)} in digital dollars` }, fmtUsd(amount)),
-      h("p", { class: "muted small" }, "in digital dollars (MUSD, 1 MUSD = $1)"),
-      note ? h("p", { class: "note-quote" }, `“${note}”`) : null,
-      h("p", { class: "chip chip-wait" }, timeLeft(d.expiresAt, now)),
+  const approx = h("p", { class: "approx" }, "Digital dollars · 1 MUSD = $1 · Zero fee to claim");
+  fetch(`/api/cashout?amount=${ethers.formatUnits(amount, 18)}`).then((r) => r.json()).then((r) => {
+    if (r?.receive != null && r.currency !== "USD") {
+      const local = new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency }).format(r.receive / (1 - r.feePct / 100));
+      approx.replaceChildren("Approx. ", h("strong", {}, local), " · Zero fee to claim");
+    }
+  }).catch(() => {});
+  const option = (title, sub, { onclick, soon, primary } = {}) => h(soon ? "div" : "button", {
+    class: `recv${soon ? " soon" : ""}${primary ? " primary" : ""}`, type: soon ? undefined : "button", onclick,
+  }, h("span", {}, h("b", {}, title, soon ? h("span", { class: "tag" }, "Soon") : null), h("small", {}, sub)), soon ? null : h("span", { class: "chev", "aria-hidden": "true" }, "›"));
+
+  render(root,
+    h("div", { class: "claim-pills" }, h("span", { class: "pill-soft" }, "🛡 Secured by the Envelope contract"), h("span", { class: "pill-warn" }, `⏱ ${timeLeft(d.expiresAt, now)}`)),
+    h("section", { class: "card gift" },
+      h("div", { class: "gift-head" },
+        h("span", { class: "gift-ic", "aria-hidden": "true" }, "🎁"),
+        h("div", {}, h("p", { class: "gift-title" }, "Someone sent you a gift"), h("p", { class: "muted small" }, "Dollars on Mezo, waiting for you")),
+        h("span", { class: "pill-soft" }, "🔓 Unlocked")),
+      h("div", { class: "gift-note" },
+        h("p", { class: "note-big" }, note ? `“${note}”` : "“Here's something for you.”"),
+        h("p", { class: "muted small" }, "Sent with love via Envelope")),
+      h("div", { class: "tear" }),
+      h("div", { class: "gift-money" },
+        h("span", { class: "pill-ok" }, "Money secured and ready"),
+        h("p", { class: "big-amount", "aria-label": `${fmtUsd(amount)} in digital dollars` }, fmtUsd(amount)),
+        approx,
+        errorText ? notice("error", errorText) : null,
+        h("button", { class: "btn btn-primary btn-claim", type: "button", "data-autofocus": true,
+          onclick: () => doClaim(parsed, d, note, now, "local") },
+          h("span", {}, `Tap to claim ${fmtUsdShort(amount)}`), h("small", {}, "No sign-up · We pay the fee")),
+        h("p", { class: "muted small center" }, "Behind the scenes: a secure wallet is made for you in this browser. No password or crypto knowledge needed."),
+      ),
+      h("div", { class: "recv-box" },
+        h("p", { class: "step" }, "Choose where to receive"),
+        option("Keep it in my Envelope wallet", "Instant · made for you right now", { primary: true, onclick: () => doClaim(parsed, d, note, now, "local") }),
+        hasWallet() ? option("Send it to my MetaMask", "If you already have a wallet", { onclick: () => doClaim(parsed, d, note, now, "metamask") }) : null,
+        option("Cash out to my bank", "Banxa in Europe, US, UK · Yellow Card in Africa", { soon: true }),
+      ),
     ),
-    h("div", { class: "ticket-bottom" },
-      errorText ? notice("error", errorText) : null,
-      h("button", { class: "btn btn-primary btn-big", type: "button", "data-autofocus": true,
-        onclick: () => doClaim(parsed, d, note, now, "local") }, `Claim my ${fmtUsdShort(amount)}`),
-      h("p", { class: "hint center" }, "No app, no sign-up, no fees."),
-      hasWallet()
-        ? h("button", { class: "btn btn-link", type: "button", onclick: () => doClaim(parsed, d, note, now, "metamask") }, "I already have a wallet (MetaMask)")
-        : null,
-    ),
-  ), h("p", { class: "hint center" }, "Tip: open in Chrome or Safari to keep your wallet."));
+    h("p", { class: "claim-foot" }, "Free for you · 7-day claim window · Tip: open in Chrome or Safari to keep your wallet"),
+  );
 }
 
 async function doClaim(parsed, d, note, now, mode) {

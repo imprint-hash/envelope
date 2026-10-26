@@ -245,8 +245,8 @@ export function saveSentLink(account, link) {
   return save(STORE.sentLinks, all);
 }
 
-export function whatsappUrl(amountWei, note, url) {
-  const text = `I've sent you ${fmtUsdShort(amountWei)} with ${APPNAME}` + (note ? ` for "${note}"` : "") +
+export function whatsappUrl(amountWei, note, url, name = "") {
+  const text = (name ? `${name}, ` : "") + `I've sent you ${fmtUsdShort(amountWei)} with ${APPNAME}` + (note ? ` for "${note}"` : "") +
     ". Tap to claim it, no app or fees needed: " + url;
   return "https://wa.me/?text=" + encodeURIComponent(text);
 }

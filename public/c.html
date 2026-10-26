@@ -16,22 +16,34 @@
 </head>
 <body>
   <header class="top">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/></svg></span><span data-appname>&nbsp;</span></a>
-    <span class="net-pill">Testnet</span>
+    <div class="top-in">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/></svg></span><span data-appname>Envelope</span></a>
+      <nav class="topnav" aria-label="Main">
+        <a href="/" data-nav="send">Send money</a>
+        <a href="/links" data-nav="links">Sent links</a>
+        <a href="/#how">How it works</a>
+      </nav>
+      <span class="guarantee"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>7-day refund guarantee</span>
+      <span class="net-pill">Mezo testnet</span>
+    </div>
   </header>
-  <main>
+  <main class="page-claim">
     <div id="app" class="app" aria-live="polite">
       <noscript><p class="card">Please turn on JavaScript to use this page.</p></noscript>
     </div>
     <div id="wallet" class="app"></div>
   </main>
-  <nav class="foot" aria-label="Main">
-    <a href="/" data-nav="send">Send</a>
-    <span aria-hidden="true">·</span>
-    <a href="/links" data-nav="links">My links</a>
-    <span aria-hidden="true">·</span>
-    <button type="button" id="nav-wallet" class="nav-btn">My wallet</button>
-  </nav>
+  <p class="wallet-link"><button type="button" id="nav-wallet" class="nav-btn">My wallet</button></p>
+  <footer class="site-foot">
+    <div class="foot-in">
+      <span class="foot-brand" data-appname>Envelope</span>
+      <span class="muted small">Dollars by link, on Mezo. Testnet demo: test MUSD has no cash value.</span>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="https://github.com/imprint-hash/envelope" target="_blank" rel="noopener noreferrer">Code</a>
+        <a href="https://explorer.test.mezo.org/address/0x2330b264BF90E94F4926fD819c1281F799005c01" target="_blank" rel="noopener noreferrer">Contract</a>
+      </nav>
+    </div>
+  </footer>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha384-6Zl0Pc8zjSz8KvmNeXRvUQgY4ryFb+BwDvKCmLYcBME0joAaru491tQgi9B7zsMM" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="module" src="/js/claim.js"></script>
 </body>

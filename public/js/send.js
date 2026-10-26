@@ -1,7 +1,7 @@
-import { APPNAME, ESCROW_ADDRESS, MUSD, ESCROW_ABI, ERC20_ABI, STORE, MAX_NOTE_BYTES, PERMIT_TYPES, MUSD_PERMIT_DOMAIN } from "./config.js";
+import { APPNAME, ESCROW_ADDRESS, MUSD, ESCROW_ABI, ERC20_ABI, STORE, STATUS, MAX_NOTE_BYTES, PERMIT_TYPES, MUSD_PERMIT_DOMAIN } from "./config.js";
 import {
   ethers, h, render, busy, notice, applyAppName, markNav, walletGate, onWalletChange, ensureChain, getSigner,
-  isRejected, musdRead, readProvider, fmtMusd, fmtUsdShort, copyText, whatsappUrl, save, remove, saveSentLink, ERRORS,
+  isRejected, musdRead, escrowRead, readProvider, fmtMusd, fmtUsdShort, copyText, whatsappUrl, save, remove, saveSentLink, ERRORS,
 } from "./common.js";
 
 const root = document.getElementById("app");
@@ -9,9 +9,11 @@ applyAppName("Send");
 markNav("send");
 
 const INTRO = "Send dollars to anyone with just a link.";
-let draft = { amount: "", note: "" };
+let draft = { amount: "", note: "", name: "" };
 
 function start() {
+  stopWatch();
+  preview.replaceChildren();
   walletGate(root, { intro: INTRO, onReady: showForm });
 }
 
@@ -21,6 +23,27 @@ function parseAmount(v) {
   try { const w = ethers.parseUnits(s.startsWith(".") ? "0" + s : s, 18); return w > 0n ? w : null; } catch { return null; }
 }
 const noteBytes = (s) => new TextEncoder().encode(s).length;
+
+const preview = document.getElementById("preview");
+
+// The voucher the recipient will see, updated as the sender types.
+function voucher({ amount, name, note, label = "Live recipient preview", status = "Ready to claim" }) {
+  return h("section", { class: "card voucher-card" },
+    h("div", { class: "row-between voucher-head" }, h("p", { class: "label-sm" }, label), h("span", { class: "dot-ok" }, "Synced")),
+    h("div", { class: "voucher" },
+      h("div", { class: "row-between" }, h("span", { class: "v-tag" }, "Dollar envelope"), h("span", { class: "v-tag v-tag-light" }, status)),
+      h("p", { class: "v-label" }, "Ready to claim"),
+      h("p", { class: "v-amount" }, amount, h("span", {}, "USD")),
+      h("p", { class: "v-meta" }, "7 days to claim · No fee to receive"),
+    ),
+    h("div", { class: "voucher-body" },
+      h("p", { class: "label-sm" }, "Recipient"),
+      h("p", { class: "v-name" }, name || "Someone special"),
+      h("p", { class: "note-quote" }, note ? `“${note}”` : "Your note shows here."),
+      h("p", { class: "v-tap" }, "They tap the link to claim instantly"),
+    ),
+  );
+}
 
 async function showForm(account, errorText) {
   render(root, busy("Checking your balance..."));
@@ -34,22 +57,28 @@ async function showForm(account, errorText) {
 
   const amountIn = h("input", {
     id: "amount", name: "amount", type: "text", inputmode: "decimal", autocomplete: "off",
-    placeholder: "0.00", value: draft.amount, "aria-describedby": "amount-help", class: "amount-input",
+    placeholder: "0.00", value: draft.amount, "aria-label": "Amount in US dollars", class: "amount-input",
   });
-  const noteIn = h("input", {
-    id: "note", name: "note", type: "text", maxlength: String(MAX_NOTE_BYTES), autocomplete: "off",
-    placeholder: "For mum's groceries", value: draft.note, "aria-describedby": "note-help",
+  const nameIn = h("input", { id: "who", name: "who", type: "text", maxlength: "40", autocomplete: "off", placeholder: "Mum", value: draft.name || "" });
+  const noteIn = h("textarea", {
+    id: "note", name: "note", maxlength: String(MAX_NOTE_BYTES), rows: "3", autocomplete: "off",
+    placeholder: "Happy birthday Mum! Buy yourself something nice.",
   });
+  noteIn.value = draft.note;
   const counter = h("span", { class: "counter", "aria-live": "polite" });
   const msg = h("div", { class: "form-msg" });
-  const sendBtn = h("button", { class: "btn btn-primary", type: "submit" }, "Send");
+  const sendBtn = h("button", { class: "btn btn-primary btn-big", type: "submit" }, "Create link");
+  const receives = h("strong", { class: "sum-big" }, "$0.00");
+  const total = h("strong", { class: "sum-total" }, "$0.00");
+  const chips = [5, 20, 50, 100, 250].map((v) => h("button", { class: "amt-chip", type: "button", onclick: () => { amountIn.value = String(v); validate(); } }, `$${v}`));
 
   function validate() {
-    draft = { amount: amountIn.value, note: noteIn.value };
+    draft = { amount: amountIn.value, note: noteIn.value, name: nameIn.value };
     const nb = noteBytes(noteIn.value);
-    counter.textContent = `${nb}/${MAX_NOTE_BYTES}`;
+    counter.textContent = `${nb} / ${MAX_NOTE_BYTES}`;
     counter.classList.toggle("over", nb > MAX_NOTE_BYTES);
     const amt = parseAmount(amountIn.value);
+    chips.forEach((c) => c.classList.toggle("on", amt !== null && c.textContent === `$${ethers.formatUnits(amt, 18).replace(/\.0$/, "")}`));
     msg.replaceChildren();
     let ok = true;
     if (btcBal === 0n) {
@@ -64,42 +93,53 @@ async function showForm(account, errorText) {
     }
     if (nb > MAX_NOTE_BYTES) ok = false;
     if (amt === null) ok = false;
+    const shown = amt ? fmtUsdShort(amt) : "$0.00";
+    receives.textContent = shown; total.textContent = shown;
     sendBtn.disabled = !ok;
-    sendBtn.textContent = amt && ok ? `Send ${fmtUsdShort(amt)}` : "Send";
+    sendBtn.textContent = amt && ok ? `Create ${shown} link` : "Create link";
+    preview.replaceChildren(voucher({ amount: amt ? fmtUsdShort(amt).replace(/^\$/, "$") : "$0.00", name: nameIn.value.trim(), note: noteIn.value.trim() }));
     return ok ? amt : null;
   }
-  amountIn.addEventListener("input", validate);
-  noteIn.addEventListener("input", validate);
+  for (const el of [amountIn, noteIn, nameIn]) el.addEventListener("input", validate);
 
-  const form = h("form", { class: "card", novalidate: true, onsubmit: (ev) => {
+  const form = h("form", { class: "card send-card", novalidate: true, onsubmit: (ev) => {
     ev.preventDefault();
     const amt = validate();
-    if (amt) doSend(account, amt, noteIn.value.trim());
+    if (amt) doSend(account, amt, noteIn.value.trim(), nameIn.value.trim());
   } },
-    h("h1", {}, INTRO),
-    h("p", { class: "balance" }, "You have ", h("strong", {}, fmtMusd(musdBal))),
     errorText ? notice("error", errorText) : null,
-    h("label", { for: "amount", class: "label" }, "Amount (digital dollars)"),
-    h("div", { class: "amount-row" },
-      h("span", { class: "amount-prefix", "aria-hidden": "true" }, "$"),
-      amountIn,
-      h("button", { class: "btn btn-chip", type: "button", onclick: () => {
-        amountIn.value = ethers.formatUnits(musdBal, 18).replace(/\.0$/, ""); validate(); amountIn.focus();
-      } }, "Max"),
+    h("div", { class: "step-head" }, h("p", { class: "step" }, "Step 1 · Enter amount"), h("span", { class: "tag" }, `Balance ${fmtMusd(musdBal)}`)),
+    h("div", { class: "amount-box" },
+      h("div", { class: "amount-row" }, h("span", { class: "amount-prefix", "aria-hidden": "true" }, "$"), amountIn, h("span", { class: "amount-unit" }, "USD")),
+      h("div", { class: "chips" }, ...chips, h("button", { class: "amt-chip", type: "button", onclick: () => {
+        amountIn.value = ethers.formatUnits(musdBal, 18).replace(/\.0$/, ""); validate(); } }, "Max")),
     ),
-    h("p", { id: "amount-help", class: "hint" }, "1 MUSD is worth 1 US dollar."),
-    h("label", { for: "note", class: "label" }, "Note ", h("span", { class: "muted" }, "(optional)")),
+    h("div", { class: "step-head" }, h("p", { class: "step" }, "Step 2 · Recipient & note"), h("span", { class: "muted small" }, "Shown when they open the link")),
+    h("label", { for: "who", class: "field-label" }, h("span", {}, "Who is this for?"), h("span", { class: "muted" }, "Only in your message, never on-chain")),
+    nameIn,
+    h("label", { for: "note", class: "field-label" }, h("span", {}, "Personal note"), counter),
     noteIn,
-    h("p", { id: "note-help", class: "hint row-between" }, h("span", {}, "Notes are public on the blockchain."), counter),
+    h("p", { class: "hint" }, "Notes are public on the blockchain."),
+    h("div", { class: "summary" },
+      h("div", { class: "sum-row" }, h("span", {}, "They receive"), receives),
+      h("div", { class: "sum-row" }, h("span", {}, "Their fee to claim"), h("span", { class: "ok" }, "$0.00 (we cover it)")),
+      h("div", { class: "sum-row" }, h("span", {}, "Your network fee"), h("span", {}, "Under $0.01 in test BTC")),
+      h("div", { class: "sum-row sum-total-row" }, h("span", {}, "Total from your wallet"), total),
+    ),
+    h("div", { class: "refund-box" },
+      h("p", {}, h("strong", {}, "7-day auto-refund"), h("span", { class: "tag tag-warn" }, "Held by the contract")),
+      h("p", {}, "If they don't claim it within 7 days, you can take the full amount back from Sent links. Nobody else can."),
+    ),
     msg,
     sendBtn,
+    h("p", { class: "trust" }, "Open-source escrow on Mezo · Link works once · No app needed"),
   );
   render(root, form);
   validate();
   if (!errorText) amountIn.focus();
 }
 
-async function doSend(account, amount, note) {
+async function doSend(account, amount, note, name = "") {
   const amtText = fmtMusd(amount);
   try {
     await ensureChain();
@@ -158,28 +198,83 @@ async function doSend(account, amount, note) {
     const url = `${location.origin}/c#${id}.${linkKey.privateKey.slice(2)}`;
     saveSentLink(account, { id: id.toString(), url, amount: amount.toString(), note, createdAt: Date.now() });
     remove(STORE.pendingKey);
-    draft = { amount: "", note: "" };
-    showDone(account, amount, note, url, receipt.hash);
+    draft = { amount: "", note: "", name: "" };
+    showDone(account, amount, note, url, receipt.hash, id, name);
   } catch (e) {
     showForm(account, isRejected(e) ? ERRORS.Cancelled : ERRORS.SendFailed);
   }
 }
 
-function showDone(account, amount, note, url, hash) {
-  const linkBox = h("input", { class: "link-box", type: "text", readonly: true, value: url, "aria-label": "Your claim link", onfocus: (e) => e.target.select() });
-  render(root, h("section", { class: "card done" },
-    h("p", { class: "eyebrow" }, `${fmtUsdShort(amount)} locked`),
-    h("h1", {}, "Your link is ready."),
-    note ? h("p", { class: "note-quote" }, `“${note}”`) : null,
-    linkBox,
-    h("div", { class: "stack" },
-      h("a", { class: "btn btn-primary btn-whatsapp", href: whatsappUrl(amount, note, url), target: "_blank", rel: "noopener noreferrer" }, "Share on WhatsApp"),
-      h("button", { class: "btn btn-secondary", type: "button", onclick: () => copyText(url, linkBox) }, "Copy link"),
+function showDone(account, amount, note, url, hash, id, name) {
+  const amt = fmtUsdShort(amount);
+  const linkBox = h("input", { class: "link-input", type: "text", readonly: true, value: url, "aria-label": "Your claim link", onfocus: (e) => e.target.select() });
+  const smsText = encodeURIComponent(`I've sent you ${amt} with ${APPNAME}. Tap to claim it, no app or fees needed: ${url}`);
+  const share = (cls, href, title, sub, icon) => h("a", { class: `share ${cls}`, href, target: "_blank", rel: "noopener noreferrer" },
+    h("span", { class: "share-ic", "aria-hidden": "true" }, icon), h("span", {}, h("b", {}, title), h("small", {}, sub)));
+
+  render(root,
+    h("section", { class: "card done-card" },
+      h("div", { class: "done-badge" }, h("span", { class: "badge-ic", "aria-hidden": "true" }, "✓"),
+        h("div", {}, h("p", { class: "label-ok" }, "Money locked safely"), h("p", { class: "muted small" }, "Held by the Envelope contract on Mezo"))),
+      h("h1", { class: "done-title" }, `Your ${amt} link is live and funded!`),
+      h("p", { class: "lead muted" }, "Share it with the person you're paying. Whoever opens it can claim the money, with no app and no fees."),
+      h("div", { class: "link-panel" },
+        h("div", { class: "row-between" }, h("p", { class: "label-sm" }, "Claim link"), h("span", { class: "label-pink" }, "Works once")),
+        h("div", { class: "link-row" }, linkBox, h("button", { class: "btn btn-primary btn-copy", type: "button", onclick: () => copyText(url, linkBox) }, "Copy link")),
+      ),
+      h("p", { class: "field-label" }, h("span", {}, "Share with them")),
+      h("div", { class: "share-grid" },
+        share("share-wa", whatsappUrl(amount, note, url, name), "Share on WhatsApp", "Best for family abroad", "💬"),
+        share("", `sms:?&body=${smsText}`, "Send by SMS", "Standard text message", "✉️"),
+        share("", `mailto:?subject=${encodeURIComponent(`${amt} for you`)}&body=${smsText}`, "Email the link", "Straight to their inbox", "📧"),
+        share("", `https://explorer.test.mezo.org/tx/${hash}`, "View on explorer", "Proof it's locked on Mezo", "🔎"),
+      ),
+      h("div", { class: "easy-box" }, h("p", {}, h("strong", {}, "Easy for them: "),
+        "they don't need an app, an account or any crypto knowledge. They open the link, tap Claim, and the dollars are theirs.")),
     ),
-    notice("warn", "Anyone with this link can claim the money. Only share it with the person you're paying. If it isn't claimed in 7 days, you can take it back."),
-    h("p", { class: "hint" }, h("a", { href: `https://explorer.test.mezo.org/tx/${hash}`, target: "_blank", rel: "noopener noreferrer" }, "View on explorer")),
-    h("button", { class: "btn btn-ghost", type: "button", onclick: () => showForm(account) }, "Send another"),
-  ));
+    h("section", { class: "card guard-card" },
+      h("div", { class: "row-between" },
+        h("div", {}, h("h2", {}, "7-day refund guard"), h("p", { class: "muted small" }, "Unclaimed money comes back to you")),
+        h("span", { class: "tag tag-warn", id: "countdown" }, "7d 0h left")),
+      h("p", { class: "muted" }, "If nobody claims it within 7 days, open Sent links and take it back. The contract only ever returns it to your wallet."),
+      h("div", { class: "row-actions" },
+        h("a", { class: "btn btn-secondary", href: "/links" }, "Sent links"),
+        h("button", { class: "btn btn-ghost", type: "button", onclick: () => { stopWatch(); showForm(account); } }, "Send another")),
+    ),
+  );
+
+  // Right column: what they'll see, and a live status read from the chain.
+  const steps = [
+    h("li", { class: "on" }, h("b", {}, "Money locked"), h("span", {}, "Just now, on Mezo")),
+    h("li", { id: "st-claim" }, h("b", {}, "Waiting for them to claim"), h("span", {}, "We check the chain every few seconds")),
+  ];
+  preview.replaceChildren(
+    voucher({ amount: amt, name, note, label: "What they'll see", status: "Active" }),
+    h("section", { class: "card status-card" },
+      h("div", { class: "row-between" }, h("h2", {}, "Live status"), h("span", { class: "dot-ok" }, "Watching")),
+      h("ol", { class: "timeline" }, ...steps)),
+  );
+  watch(id);
+}
+
+let watcher = null;
+function stopWatch() { if (watcher) clearInterval(watcher); watcher = null; }
+function watch(id) {
+  stopWatch();
+  const started = Date.now();
+  watcher = setInterval(async () => {
+    const left = 7 * 86400 * 1000 - (Date.now() - started);
+    const cd = document.getElementById("countdown");
+    if (cd) cd.textContent = `${Math.floor(left / 86400000)}d ${Math.floor(left / 3600000) % 24}h ${Math.floor(left / 60000) % 60}m left`;
+    try {
+      const [d] = await escrowRead().getDeposit(id);
+      if (Number(d.status) === STATUS.Claimed) {
+        const li = document.getElementById("st-claim");
+        if (li) { li.className = "on"; li.replaceChildren(h("b", {}, "Claimed!"), h("span", {}, "The money is in their wallet")); }
+        stopWatch();
+      }
+    } catch { /* try again next tick */ }
+  }, 5000);
 }
 
 onWalletChange(() => start());
