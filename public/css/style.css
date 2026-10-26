@@ -398,3 +398,43 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
 .banner { background: linear-gradient(90deg, #1c0a12, var(--surface-2)); border: 1px solid var(--line); }
 .top { background: rgba(10,10,12,.85); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 5; }
 .voucher { box-shadow: 0 20px 50px -24px rgba(255, 10, 92, .8); }
+
+/* Touches from the Orizon fintech reference: white cards on black, dark icon tiles, list rows. */
+:root { --paper: #ffffff; --paper-ink: #0a0a0c; --paper-muted: #6b6b75; }
+.bg { background: var(--bg); }
+.amount-box { background: var(--paper); color: var(--paper-ink); position: relative; overflow: hidden; }
+.amount-box .amount-input { color: var(--paper-ink); }
+.amount-box .amount-unit { color: var(--paper-muted); }
+.amount-box::after { /* coin-bag outline, like the reference balance card */
+  content: "$"; position: absolute; right: 18px; top: 10px; width: 54px; height: 54px; border-radius: 50%;
+  border: 2px solid rgba(10,10,12,.12); display: grid; place-items: center; font-weight: 800; color: rgba(10,10,12,.18); font-size: 1.4rem;
+}
+.amount-box .amt-chip { background: #f0f0f3; color: var(--paper-ink); }
+.amount-box .amt-chip.on { background: var(--accent); color: #fff; }
+.step-head .tag { background: var(--surface-3); color: var(--ink); }
+
+/* list rows: white, dark square icon, chevron */
+.share, .recv { background: var(--paper); color: var(--paper-ink); }
+.share:hover { background: #f4f4f6; }
+.share small, .recv small { color: var(--paper-muted); }
+.share-ic { background: var(--paper-ink) !important; color: #fff; border-radius: 12px; font-size: 1rem; }
+.share-wa { background: var(--paper); }
+.share-wa .share-ic { background: #25d366 !important; }
+.recv .chev { color: var(--paper-ink); }
+.recv.primary { outline: 3px solid var(--accent); }
+.recv.soon { background: #d9d9de; }
+
+/* round dark action buttons */
+.amt-chip { border-radius: 999px; }
+.btn-secondary { background: var(--surface-3); color: var(--ink); }
+
+/* claim money panel as a white card */
+.gift-money { background: var(--paper); color: var(--paper-ink); }
+.gift-money .big-amount { color: var(--paper-ink); }
+.gift-money .muted, .gift-money .approx { color: var(--paper-muted); }
+.gift-money .approx strong { color: var(--paper-ink); }
+.approx { background: #f0f0f3; border-radius: 999px; padding: 8px 16px; font-size: .9rem; }
+.gift-note { background: var(--surface-3); }
+
+/* summary rows like the reference history list */
+.summary { background: var(--surface-2); border: 1px solid var(--line); }
