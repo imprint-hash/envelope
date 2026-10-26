@@ -392,3 +392,4 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
   .gift-head .pill-soft { display: none; }
   .amount-box .amount-input { font-size: 2.8rem !important; }
 }
+.top { display: block; }

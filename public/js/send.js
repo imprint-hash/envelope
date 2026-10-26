@@ -13,7 +13,7 @@ let draft = { amount: "", note: "", name: "" };
 
 function start() {
   stopWatch();
-  preview.replaceChildren();
+  preview.replaceChildren(voucher({ amount: "$50.00", name: "Mum", note: "Happy birthday Mum! Buy yourself something nice.", label: "What they'll see" }));
   walletGate(root, { intro: INTRO, onReady: showForm });
 }
 
