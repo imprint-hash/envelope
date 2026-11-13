@@ -516,3 +516,11 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
   .loan-stats { grid-template-columns: 1fr 1fr; }
   .loan-stats div:last-child { grid-column: span 2; }
 }
+
+/* claim choices: dollars, Mezo Pools savings, a little BTC */
+.choices h1 { margin: 0 0 4px; }
+.choices .recv-box { padding: 14px 0 6px; }
+.recv.choice { align-items: flex-start; }
+.recv.choice .chev { align-self: center; }
+.recv .quote { display: block; margin-top: 6px; font-weight: 700; color: var(--paper-ink); font-variant-numeric: tabular-nums; }
+.recv:disabled { opacity: .7; cursor: progress; }

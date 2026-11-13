@@ -6,6 +6,7 @@ import {EnvelopeV2} from "../contracts/EnvelopeV2.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {ReentrantToken} from "./mocks/ReentrantToken.sol";
 import {FalseToken} from "./mocks/FalseToken.sol";
+import {MockPool, MockPoolsRouter, MockFactory} from "./mocks/MockPools.sol";
 
 /// @notice Token that burns 1% of every incoming transferFrom (fee-on-transfer).
 contract BurnOnTransferToken is MockERC20 {
@@ -62,6 +63,50 @@ abstract contract EnvelopeV2Base is Test {
 
     function _noPermit() internal pure returns (EnvelopeV2.PermitArgs memory p) {}
 
+    /// Claim options switched off.
+    function _noPools() internal pure returns (EnvelopeV2.PoolsConfig memory p) {}
+
+    struct Pools {
+        MockPoolsRouter router;
+        MockERC20 partner;
+        MockERC20 btc;
+        MockPool earnPool;
+        MockPool btcPool;
+        EnvelopeV2.PoolsConfig cfg;
+    }
+
+    /// Mock Mezo Pools around `musd`: 1 MUSD -> 0.8 partner, 1 MUSD -> 1/80_000 BTC,
+    /// the stable pool wants 0.4 partner per MUSD, the router says swap 30%.
+    function _mockPools(address musd) internal returns (Pools memory p) {
+        p.router = new MockPoolsRouter();
+        p.partner = new MockERC20("mUSDC");
+        p.btc = new MockERC20("BTC");
+        p.earnPool = new MockPool(musd, address(p.partner), true);
+        p.btcPool = new MockPool(musd, address(p.btc), false);
+        p.router.setPool(musd, address(p.partner), true, address(p.earnPool));
+        p.router.setPool(musd, address(p.btc), false, address(p.btcPool));
+        p.router.setRate(musd, address(p.partner), 8, 10);
+        p.router.setRate(musd, address(p.btc), 1, 80_000);
+        p.router.setLpRatio(musd, address(p.partner), 4, 10);
+        p.cfg = EnvelopeV2.PoolsConfig({
+            router: address(p.router),
+            factory: address(new MockFactory()),
+            partner: address(p.partner),
+            btc: address(p.btc),
+            earnPool: address(p.earnPool),
+            btcPool: address(p.btcPool)
+        });
+    }
+
+    function _sigOption(EnvelopeV2 e, uint256 pk, uint256 id, address to, uint8 mode, uint256 minOut, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, e.claimWithOptionDigest(id, to, mode, minOut, deadline));
+        return abi.encodePacked(r, s, v);
+    }
+
     function _total(EnvelopeV2 e, uint256 amount) internal view returns (uint256 t) {
         (t,) = e.quote(amount);
     }
@@ -97,7 +142,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     function setUp() public {
         vm.warp(1_700_000_000);
         token = new MockERC20("Mezo USD");
-        env = new EnvelopeV2(address(token), treasury, FEE_BPS, REWARD);
+        env = new EnvelopeV2(address(token), treasury, FEE_BPS, REWARD, _noPools());
         (sender, senderPk) = makeAddrAndKey("sender");
         (link, linkPk) = makeAddrAndKey("link");
         token.mint(sender, START);
@@ -143,29 +188,29 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     }
 
     function test_Constructor_AllowsCapExactly() public {
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 100, 1e18);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 100, 1e18, _noPools());
         assertEq(e.FEE_BPS(), 100);
         assertEq(e.relayerReward(), 1e18);
     }
 
     function test_RevertWhen_Constructor_TokenNotAContract() public {
         vm.expectRevert(EnvelopeV2.NotAContract.selector);
-        new EnvelopeV2(makeAddr("eoa"), treasury, FEE_BPS, REWARD);
+        new EnvelopeV2(makeAddr("eoa"), treasury, FEE_BPS, REWARD, _noPools());
     }
 
     function test_RevertWhen_Constructor_ZeroTreasury() public {
         vm.expectRevert(EnvelopeV2.ZeroAddress.selector);
-        new EnvelopeV2(address(token), address(0), FEE_BPS, REWARD);
+        new EnvelopeV2(address(token), address(0), FEE_BPS, REWARD, _noPools());
     }
 
     function test_RevertWhen_Constructor_FeeAboveCap() public {
         vm.expectRevert(EnvelopeV2.FeeTooHigh.selector);
-        new EnvelopeV2(address(token), treasury, 101, REWARD);
+        new EnvelopeV2(address(token), treasury, 101, REWARD, _noPools());
     }
 
     function test_RevertWhen_Constructor_RewardAboveCap() public {
         vm.expectRevert(EnvelopeV2.RewardTooHigh.selector);
-        new EnvelopeV2(address(token), treasury, FEE_BPS, 1e18 + 1);
+        new EnvelopeV2(address(token), treasury, FEE_BPS, 1e18 + 1, _noPools());
     }
 
     // ================================================================ views
@@ -281,7 +326,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     }
 
     function test_Create_ZeroFeeContract() public {
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 0, REWARD);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 0, REWARD, _noPools());
         vm.startPrank(sender);
         token.approve(address(e), type(uint256).max);
         vm.recordLogs();
@@ -358,7 +403,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
 
     function test_RevertWhen_Create_TokenReturnsFalse() public {
         FalseToken ft = new FalseToken();
-        EnvelopeV2 e = new EnvelopeV2(address(ft), treasury, FEE_BPS, REWARD);
+        EnvelopeV2 e = new EnvelopeV2(address(ft), treasury, FEE_BPS, REWARD, _noPools());
         vm.prank(sender);
         vm.expectRevert(EnvelopeV2.TransferFailed.selector);
         e.create(link, AMOUNT, "");
@@ -366,7 +411,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
 
     function test_RevertWhen_Create_FeeOnTransferToken() public {
         BurnOnTransferToken bt = new BurnOnTransferToken();
-        EnvelopeV2 e = new EnvelopeV2(address(bt), treasury, FEE_BPS, REWARD);
+        EnvelopeV2 e = new EnvelopeV2(address(bt), treasury, FEE_BPS, REWARD, _noPools());
         bt.mint(sender, TOTAL);
         vm.startPrank(sender);
         bt.approve(address(e), type(uint256).max);
@@ -552,7 +597,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     }
 
     function test_RevertWhen_CreateFor_SigFromOtherContract() public {
-        EnvelopeV2 other = new EnvelopeV2(address(token), treasury, FEE_BPS, REWARD);
+        EnvelopeV2 other = new EnvelopeV2(address(token), treasury, FEE_BPS, REWARD, _noPools());
         EnvelopeV2.CreateForArgs memory a = _args(sender, link, AMOUNT, block.timestamp + 1, "");
         bytes memory auth = _sigCreateFor(other, senderPk, a, 0);
         vm.expectRevert(EnvelopeV2.BadSignature.selector);
@@ -844,7 +889,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     }
 
     function test_Sweep_ZeroRewardMeansZeroBuffer() public {
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, FEE_BPS, 0);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, FEE_BPS, 0, _noPools());
         vm.startPrank(sender);
         token.approve(address(e), type(uint256).max);
         e.create(link, AMOUNT, "");
@@ -877,7 +922,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
 
     function test_RelayerReward_PartialWhenFundLow() public {
         // fee 100 bps, reward 1 MUSD. 10 MUSD envelope: fee 0.1, claim cap 0.05.
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 100, 1e18);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, 100, 1e18, _noPools());
         vm.startPrank(sender);
         token.approve(address(e), type(uint256).max);
         uint256 id = e.create(link, 10e18, "");
@@ -911,7 +956,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
 
     function _reentrantEnv() internal returns (ReentrantToken rt, EnvelopeV2 e) {
         rt = new ReentrantToken();
-        e = new EnvelopeV2(address(rt), treasury, FEE_BPS, REWARD);
+        e = new EnvelopeV2(address(rt), treasury, FEE_BPS, REWARD, _noPools());
         rt.mint(sender, 10_000e18);
         vm.prank(sender);
         rt.approve(address(e), type(uint256).max);
@@ -989,7 +1034,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
     function testFuzz_FeeRespectsCap(uint256 bps, uint256 amount) public {
         bps = bound(bps, 0, 100);
         amount = bound(amount, 0, type(uint96).max);
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, bps, REWARD);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, bps, REWARD, _noPools());
         assertLe(e.feeFor(amount), (amount + 99) / 100); // never more than 1%, rounded up
     }
 
@@ -1009,7 +1054,7 @@ contract EnvelopeV2Test is EnvelopeV2Base {
         bps = bound(bps, 0, 100);
         reward = bound(reward, 0, 1e18);
         amount = uint96(bound(amount, 1, 1_000_000e18));
-        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, bps, reward);
+        EnvelopeV2 e = new EnvelopeV2(address(token), treasury, bps, reward, _noPools());
         (address who, uint256 pk) = makeAddrAndKey("fz");
         (uint256 total, uint256 fee) = e.quote(amount);
         token.mint(who, total);
@@ -1145,6 +1190,26 @@ contract EnvelopeV2Handler is EnvelopeV2Base {
         totalClaimed += d.amount;
     }
 
+    /// Claim through a Mezo Pools option (mock router). Tiny envelopes are skipped: the
+    /// contract rejects them with AmountTooSmall and fail-on-revert is on.
+    function claimOption(uint256 idx, bool earn) external {
+        if (ids.length == 0) return;
+        uint256 id = ids[bound(idx, 0, ids.length - 1)];
+        (EnvelopeV2.Deposit memory d,) = env.getDeposit(id);
+        if (d.status != EnvelopeV2.Status.Open || block.timestamp >= d.expiresAt || d.amount < 1e12) return;
+        uint8 mode = earn ? env.MODE_EARN() : env.MODE_GAS_TIP();
+        address to = address(uint160(0x2000 + id));
+        bytes memory sig = _sigOption(env, linkPk, id, to, mode, 1, block.timestamp);
+        uint256 b = token.balanceOf(relayer);
+        vm.prank(relayer);
+        env.claimWithOption(id, to, mode, 1, block.timestamp, sig);
+        uint256 r = token.balanceOf(relayer) - b;
+        if (!earn) require(token.balanceOf(to) == d.amount - env.gasTipFor(d.amount), "rest arrives as MUSD");
+        rewardOf[id] += r;
+        totalRewards += r;
+        totalClaimed += d.amount;
+    }
+
     function refund(uint256 idx) external {
         if (ids.length == 0) return;
         uint256 id = ids[bound(idx, 0, ids.length - 1)];
@@ -1187,7 +1252,7 @@ contract EnvelopeV2Handler is EnvelopeV2Base {
 /// forge-config: default.invariant.runs = 256
 /// forge-config: default.invariant.depth = 64
 /// forge-config: default.invariant.fail-on-revert = true
-contract EnvelopeV2InvariantTest is Test {
+contract EnvelopeV2InvariantTest is EnvelopeV2Base {
     EnvelopeV2 env;
     MockERC20 token;
     EnvelopeV2Handler handler;
@@ -1195,15 +1260,17 @@ contract EnvelopeV2InvariantTest is Test {
     function setUp() public {
         vm.warp(1_700_000_000);
         token = new MockERC20("Mezo USD");
-        env = new EnvelopeV2(address(token), makeAddr("treasury"), 50, 0.05e18);
+        Pools memory p = _mockPools(address(token));
+        env = new EnvelopeV2(address(token), makeAddr("treasury"), 50, 0.05e18, p.cfg);
         handler = new EnvelopeV2Handler(env, token);
-        bytes4[] memory sel = new bytes4[](6);
+        bytes4[] memory sel = new bytes4[](7);
         sel[0] = EnvelopeV2Handler.create.selector;
         sel[1] = EnvelopeV2Handler.createFor.selector;
         sel[2] = EnvelopeV2Handler.claim.selector;
         sel[3] = EnvelopeV2Handler.refund.selector;
         sel[4] = EnvelopeV2Handler.sweep.selector;
         sel[5] = EnvelopeV2Handler.warp.selector;
+        sel[6] = EnvelopeV2Handler.claimOption.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
         targetContract(address(handler));
     }
@@ -1232,5 +1299,17 @@ contract EnvelopeV2InvariantTest is Test {
 
     function invariant_TreasuryOnlyGetsSweeps() public view {
         assertEq(token.balanceOf(env.treasury()), handler.totalSwept());
+    }
+
+    /// Claim options never leave an allowance behind for the router.
+    function invariant_NoRouterAllowanceLeft() public view {
+        assertEq(token.allowance(address(env), env.router()), 0);
+        assertEq(MockERC20(env.partner()).allowance(address(env), env.router()), 0);
+    }
+
+    /// The contract never holds partner tokens or BTC after a claim option.
+    function invariant_NoPartnerOrBtcStuck() public view {
+        assertEq(MockERC20(env.partner()).balanceOf(address(env)), 0);
+        assertEq(MockERC20(env.btc()).balanceOf(address(env)), 0);
     }
 }
