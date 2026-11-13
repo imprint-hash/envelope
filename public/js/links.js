@@ -1,7 +1,7 @@
-import { ESCROW_ADDRESS, ESCROW_ABI, STORE, STATUS } from "./config.js";
+import { STORE, STATUS, V2_LINK_PREFIX } from "./config.js";
 import {
   ethers, h, render, busy, notice, applyAppName, markNav, walletGate, onWalletChange, ensureChain, getSigner,
-  isRejected, escrowRead, latestTimestamp, fmtUsd, fmtUsdShort, fmtDate, timeLeft, copyText, whatsappUrl,
+  isRejected, escrowReadFor, escrowAddressFor, escrowAbiFor, v2Configured, latestTimestamp, fmtUsd, fmtUsdShort, fmtDate, timeLeft, copyText, whatsappUrl,
   load, remove, sentLinksFor, saveSentLink, ERRORS,
 } from "./common.js";
 
@@ -19,13 +19,18 @@ async function showLinks(account) {
   render(root, busy("Loading your links..."));
   let rows, now;
   try {
-    const escrow = escrowRead();
-    const [ids, ts] = await Promise.all([escrow.idsOf(account), latestTimestamp()]);
-    now = ts;
-    rows = await Promise.all([...ids].map(async (id) => {
-      const [d, note] = await escrow.getDeposit(id);
-      return { id, d, note };
+    // Links from both contracts: V1 (LinkEscrow, old links) and V2 (EnvelopeV2) once deployed.
+    const versions = v2Configured() ? [1, 2] : [1];
+    now = await latestTimestamp();
+    const perVersion = await Promise.all(versions.map(async (v) => {
+      const escrow = escrowReadFor(v);
+      const ids = await escrow.idsOf(account);
+      return Promise.all([...ids].map(async (id) => {
+        const [d, note] = await escrow.getDeposit(id);
+        return { v, id, d, note, createdAt: BigInt(d.expiresAt) - 7n * 86400n };
+      }));
     }));
+    rows = perVersion.flat();
   } catch {
     return render(root, notice("error", ERRORS.Network,
       h("button", { class: "btn btn-secondary", type: "button", onclick: () => showLinks(account) }, "Try again")));
@@ -37,13 +42,13 @@ async function showLinks(account) {
     const hit = rows.find((r) => ethers.getAddress(r.d.link) === ethers.getAddress(pending.link));
     if (hit) {
       saveSentLink(account, {
-        id: hit.id.toString(), url: `${location.origin}/c#${hit.id}.${pending.pk.slice(2)}`,
+        v: hit.v, id: hit.id.toString(), url: `${location.origin}/c#${hit.v === 2 ? V2_LINK_PREFIX : ""}${hit.id}.${pending.pk.slice(2)}`,
         amount: hit.d.amount.toString(), note: hit.note, createdAt: pending.at || Date.now(),
       });
       remove(STORE.pendingKey);
     }
   }
-  const urls = new Map(sentLinksFor(account).map((l) => [String(l.id), l.url]));
+  const urls = new Map(sentLinksFor(account).map((l) => [`${l.v || 1}:${l.id}`, l.url]));
 
   if (rows.length === 0) {
     return render(root, h("section", { class: "card center" },
@@ -52,14 +57,14 @@ async function showLinks(account) {
     ));
   }
 
-  rows.sort((a, b) => (b.id > a.id ? 1 : -1));
+  rows.sort((a, b) => (b.createdAt > a.createdAt ? 1 : b.createdAt < a.createdAt ? -1 : b.v - a.v));
   render(root,
     h("h1", { class: "page-title" }, "My links"),
-    h("ul", { class: "link-list" }, rows.map((r) => row(account, r, now, urls.get(r.id.toString())))),
+    h("ul", { class: "link-list" }, rows.map((r) => row(account, r, now, urls.get(`${r.v}:${r.id}`)))),
   );
 }
 
-function row(account, { id, d, note }, now, url) {
+function row(account, { v, id, d, note }, now, url) {
   const status = Number(d.status);
   const expired = now >= BigInt(d.expiresAt);
   const createdAt = BigInt(d.expiresAt) - 7n * 86400n;
@@ -77,7 +82,7 @@ function row(account, { id, d, note }, now, url) {
       try {
         await ensureChain();
         const signer = await getSigner();
-        const tx = await new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, signer).refund(id);
+        const tx = await new ethers.Contract(escrowAddressFor(v), escrowAbiFor(v), signer).refund(id);
         const rc = await tx.wait();
         if (!rc || rc.status !== 1) throw new Error("failed");
         out.replaceChildren(notice("ok", `Done. ${fmtUsdShort(d.amount)} is back in your wallet.`));

@@ -443,3 +443,76 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
 @media (max-width: 640px) { .acct { display: none; } }
 .acct-out { appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: .8rem; margin-left: 4px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+
+/* ===== Wave 2: pay from Bitcoin, loan health, fee transparency ===== */
+:root { --safe: #12a150; --risky: #d97706; --block: #e11d48; }
+
+/* payment method: real radios (keyboard + screen readers), styled as white rows */
+.pay-methods { border: 0; margin: 0 0 6px; padding: 0; display: grid; gap: 10px; }
+.pay-methods legend { margin-bottom: 10px; padding: 0; }
+.pay-opt { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 16px; min-height: 64px; border-radius: 16px; background: var(--paper); color: var(--paper-ink); cursor: pointer; }
+.pay-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pay-opt b { display: block; font-size: 1rem; }
+.pay-opt small { display: block; color: var(--paper-muted); font-size: .85rem; }
+.pay-dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c9c9d0; display: grid; place-items: center; }
+.pay-opt:has(input:checked) { outline: 3px solid var(--accent); }
+.pay-opt input:checked + .pay-dot { border-color: var(--accent); }
+.pay-opt input:checked + .pay-dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.pay-opt:focus-within { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/* loan-health card */
+.loan-card { background: var(--paper); color: var(--paper-ink); border-radius: 20px; padding: 18px; margin-top: 14px; display: grid; gap: 14px; }
+.loan-title { margin: 0; font-weight: 800; }
+.tag-ink { background: var(--paper-ink); color: #fff; margin: 0; }
+.loan-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.loan-stats div { background: #f3f3f6; border-radius: 14px; padding: 10px 12px; }
+.loan-stats small { display: block; color: var(--paper-muted); font-size: .78rem; font-weight: 600; }
+.loan-stats b { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.lvl-safe { color: var(--safe); }
+.lvl-risky { color: var(--risky); }
+.lvl-blocked { color: var(--block); }
+
+.meter-wrap { padding: 22px 0 4px; }
+.meter { position: relative; height: 14px; border-radius: 999px; background: #eee; }
+.meter-zone { position: absolute; top: 0; bottom: 0; }
+.z-liq { background: #7f1d1d; border-radius: 999px 0 0 999px; }
+.z-block { background: var(--block); }
+.z-risky { background: #fbbf24; }
+.z-safe { background: #34d399; border-radius: 0 999px 999px 0; }
+.meter-tick { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--paper-ink); transform: translateX(-1px); }
+.meter-tick span { position: absolute; left: 50%; transform: translateX(-50%); font-size: .72rem; font-weight: 700; color: var(--paper-muted); white-space: nowrap; }
+.t-above span { bottom: calc(100% + 2px); }
+.t-below span { top: calc(100% + 2px); }
+.meter-dot { position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.dot-now { background: #fff; border: 3px solid var(--paper-ink); }
+.dot-after { border: 3px solid #fff; background: currentColor; }
+.meter-legend { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: var(--paper-muted); }
+.meter-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.k-liq { background: #7f1d1d; } .k-block { background: var(--block); } .k-safe { background: #34d399; }
+.health-status { border-radius: 14px; padding: 12px 14px; background: #f3f3f6; }
+.health-status b { display: block; }
+.health-status p { margin: 2px 0 0; color: var(--paper-ink); font-size: .92rem; }
+.health-status.lvl-safe { background: #e7f8ee; }
+.health-status.lvl-risky { background: #fff4e0; }
+.health-status.lvl-blocked { background: #ffe6ea; }
+.loan-hint { margin: 0; color: var(--paper-muted); font-size: .9rem; }
+
+/* fee transparency */
+.fee-note { margin: 4px 0 0; font-size: .85rem; color: var(--muted); }
+.fee-line { margin: 0 0 8px; font-size: .95rem; color: var(--ink); background: var(--surface-2); border-radius: 14px; padding: 10px 14px; }
+.fee-line-claim { margin: 0; font-size: .88rem; color: var(--paper-muted); }
+.done .fee-line-claim { color: var(--muted); }
+
+/* progress while borrowing + creating */
+.progress-card .timeline { text-align: left; width: 100%; max-width: 360px; margin: 6px auto 12px; }
+.timeline li.now { color: var(--ink); }
+.timeline li.now::before { content: ""; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; box-sizing: border-box; }
+
+/* growth loop on the claim page */
+.forward-card { margin-top: 14px; border-top: 6px solid var(--accent); }
+.forward-card h2 { margin-bottom: 4px; }
+
+@media (max-width: 640px) {
+  .loan-stats { grid-template-columns: 1fr 1fr; }
+  .loan-stats div:last-child { grid-column: span 2; }
+}

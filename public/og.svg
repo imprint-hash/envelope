@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="pink" cx="100%" cy="0%" r="140%">
+      <stop offset="0" stop-color="#ff0a5c"/>
+      <stop offset=".45" stop-color="#ff1f6b"/>
+      <stop offset="1" stop-color="#b8003f"/>
+    </radialGradient>
+    <clipPath id="card"><rect width="360" height="330" rx="28"/></clipPath>
+  </defs>
+  <rect width="1200" height="630" fill="#0a0a0c"/>
+  <!-- brand -->
+  <rect x="80" y="70" width="64" height="64" rx="18" fill="#ff0a5c"/>
+  <rect x="94" y="88" width="36" height="26" rx="5" fill="none" stroke="#fff" stroke-width="4"/>
+  <path d="M96 91l16 12 16-12" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <text x="164" y="116" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="40" font-weight="800" fill="#f6f6f8">Envelope</text>
+  <!-- headline -->
+  <text x="80" y="268" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="76" font-weight="800" fill="#f6f6f8" letter-spacing="-2">Someone sent</text>
+  <text x="80" y="356" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="76" font-weight="800" fill="#f6f6f8" letter-spacing="-2">you money.</text>
+  <text x="80" y="430" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="32" font-weight="600" fill="#a0a0ab">Tap the link to claim it. No app, no sign-up,</text>
+  <text x="80" y="474" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="32" font-weight="600" fill="#a0a0ab">no fee to receive.</text>
+  <rect x="80" y="520" width="300" height="52" rx="26" fill="#0f2a1d"/>
+  <text x="230" y="555" text-anchor="middle" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="#5fe3a1">Dollars on Mezo</text>
+  <!-- envelope card -->
+  <g transform="translate(760 150) rotate(-6)">
+    <rect width="360" height="330" rx="28" fill="url(#pink)"/>
+    <g clip-path="url(#card)"><rect x="230" y="200" width="190" height="190" rx="28" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="14" transform="rotate(45 325 295)"/></g>
+    <rect x="28" y="30" width="190" height="34" rx="17" fill="#fff" fill-opacity=".18"/>
+    <text x="123" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#fff" letter-spacing="1.5">DOLLAR ENVELOPE</text>
+    <text x="28" y="140" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#fff" fill-opacity=".85" letter-spacing="2">READY TO CLAIM</text>
+    <text x="28" y="216" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="76" font-weight="800" fill="#fff" letter-spacing="-3">$ · · ·</text>
+    <rect x="28" y="254" width="304" height="50" rx="25" fill="#fff"/>
+    <text x="180" y="287" text-anchor="middle" font-family="Plus Jakarta Sans, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#ff1f6b">Tap to claim</text>
+  </g>
+</svg>

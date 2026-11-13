@@ -9,8 +9,47 @@ export const CHAIN = {
   explorer: "https://explorer.test.mezo.org",
 };
 
-// The deployed LinkEscrow on Mezo testnet (public, safe to commit).
+// The deployed LinkEscrow (V1) on Mezo testnet (public, safe to commit). Kept forever so old links still work.
 export const ESCROW_ADDRESS = "0x2330b264BF90E94F4926fD819c1281F799005c01";
+
+// EnvelopeV2 (0.5% fee, createFor, "Pay from my Bitcoin").
+// >>> PLACEHOLDER: set this to the deployed EnvelopeV2 address. <<<
+// While it is the zero address the app keeps sending through V1 and hides "Pay from my Bitcoin".
+// The relayer reads its own copy from the ESCROW_ADDRESS_V2 env var.
+export const ESCROW_ADDRESS_V2 = "0x0000000000000000000000000000000000000000";
+
+// Link format: V1 links are /c#<id>.<key>, V2 links are /c#v2-<id>.<key>.
+// Unmarked links are looked up on V1 first, then V2 (the key must match the envelope's link address either way).
+export const V2_LINK_PREFIX = "v2-";
+
+// Mezo protocol contracts (testnet, proxies).
+export const MEZO = {
+  troveManager: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
+  borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
+  borrowerOpsSignatures: "0xD757e3646AF370b15f32EB557F0F8380Df7D639e",
+  priceFeed: "0x86bCF0841622a5dAC14A313a15f96A95421b9366",
+};
+export const MEZO_ABI = {
+  troveManager: [
+    "function getTroveStatus(address) view returns (uint8)",
+    "function getCurrentICR(address, uint256 price) view returns (uint256)",
+    "function getEntireDebtAndColl(address) view returns (uint256 coll, uint256 principal, uint256 interest, uint256 pendingCollateral, uint256 pendingPrincipal, uint256 pendingInterest)",
+    "function checkRecoveryMode(uint256 price) view returns (bool)",
+  ],
+  borrowerOperations: ["function getBorrowingFee(uint256) view returns (uint256)"],
+  borrowerOpsSignatures: ["function getNonce(address) view returns (uint256)"],
+  priceFeed: ["function fetchPrice() view returns (uint256)"],
+};
+export const WITHDRAW_MUSD_DOMAIN = { name: "BorrowerOperationsSignatures", version: "1", chainId: 31611, verifyingContract: MEZO.borrowerOpsSignatures };
+export const WITHDRAW_MUSD_TYPES = {
+  WithdrawMUSD: [
+    { name: "amount", type: "uint256" },
+    { name: "borrower", type: "address" },
+    { name: "recipient", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+};
 
 export const MUSD = "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503";
 export const MUSD_DECIMALS = 18;
