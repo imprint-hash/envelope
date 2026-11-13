@@ -18,6 +18,17 @@ export const ESCROW_ADDRESS = "0x2330b264BF90E94F4926fD819c1281F799005c01";
 // The relayer reads its own copy from the ESCROW_ADDRESS_V2 env var.
 export const ESCROW_ADDRESS_V2 = "0x0000000000000000000000000000000000000000";
 
+// Blocks the contracts were deployed in. The Stats page reads events from here forward (Mezo's RPC caps
+// eth_getLogs at 10,000 blocks per call, so it pages in 10k windows down to these blocks).
+// V1: creation tx 0x26bdfdf759ead91c212a27786fb7fffde540fb5863b55f09f3e4d54edb11b1d3 (block 16380327).
+export const ESCROW_DEPLOY_BLOCK = 16380327;
+// >>> PLACEHOLDER: set this to EnvelopeV2's deploy block when ESCROW_ADDRESS_V2 is set. <<<
+// While it is 0 the Stats page scans V2 from the V1 deploy block (correct, just a little slower).
+export const ESCROW_V2_DEPLOY_BLOCK = 0;
+// Signature of the future "claim into a Mezo Pools position" function, e.g. "claimWithOption(uint256,address,bytes,uint8)".
+// Empty = not shipped yet; the Stats page shows a "coming with claim options" tile instead of a count.
+export const CLAIM_OPTION_SIG = "";
+
 // Link format: V1 links are /c#<id>.<key>, V2 links are /c#v2-<id>.<key>.
 // Unmarked links are looked up on V1 first, then V2 (the key must match the envelope's link address either way).
 export const V2_LINK_PREFIX = "v2-";

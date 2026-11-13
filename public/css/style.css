@@ -516,3 +516,58 @@ textarea:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
   .loan-stats { grid-template-columns: 1fr 1fr; }
   .loan-stats div:last-child { grid-column: span 2; }
 }
+
+/* ===== Stats page: "Envelope in numbers" ===== */
+main.page-stats { max-width: 960px; }
+.page-stats .app { gap: 16px; }
+.stat-head h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); margin-bottom: 6px; }
+.stat-head p:last-child { margin: 0; }
+.stat-hero { position: relative; overflow: hidden; border-radius: var(--radius); padding: 22px; color: #fff;
+  background: radial-gradient(120% 140% at 100% 0%, var(--brand) 0%, var(--accent) 45%, var(--accent-deep) 100%);
+  box-shadow: 0 20px 50px -24px rgba(255, 10, 92, .8); }
+.stat-hero::after { content: ""; position: absolute; right: -28px; bottom: -70px; width: 170px; height: 170px; border: 14px solid rgba(255,255,255,.14); border-radius: 26px; transform: rotate(45deg); }
+.stat-hero .v-label { margin-top: 0; }
+.stat-hero-amount { margin: 4px 0 6px; font-size: clamp(2.4rem, 11vw, 3.8rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat-hero-amount span { font-size: 1.1rem; font-weight: 700; margin-left: 8px; letter-spacing: 0; }
+.stat-hero .v-meta { position: relative; z-index: 1; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--paper); color: var(--paper-ink); border-radius: 20px; padding: 16px; display: grid; align-content: start; gap: 2px; min-width: 0; }
+.stat p { margin: 0; }
+.stat-label { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--paper-muted); }
+.stat-value { font-size: clamp(1.8rem, 7vw, 2.3rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: .85rem; color: var(--paper-muted); }
+.stat-soon { background: var(--surface-2); color: var(--ink); border: 1px dashed var(--line); }
+.stat-soon .stat-label, .stat-soon .stat-sub { color: var(--muted); }
+.stat-soon .stat-value { color: var(--accent); }
+.stat-gas { background: var(--paper); color: var(--paper-ink); border: 0; gap: 12px; }
+.stat-gas h2 { margin: 0; }
+.stat-gas-stats { grid-template-columns: 1fr 1fr; }
+.stat-cover-bar { height: 12px; border-radius: 999px; background: #eee; overflow: hidden; }
+.stat-cover-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.stat-cover-text { margin: 8px 0 0; font-size: .92rem; font-weight: 600; }
+.stat-progress { width: 100%; max-width: 320px; height: 10px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin: 6px 0 8px; }
+.stat-progress span { display: block; height: 100%; background: var(--accent); transition: width .2s ease; }
+.stat-latest h2 { margin: 0; }
+.stat-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.stat-table th { text-align: left; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.stat-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.stat-table tr:last-child td { border-bottom: 0; }
+.stat-table .num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.stat-table a { font-family: var(--mono); font-size: .85rem; font-weight: 600; display: inline-flex; align-items: center; min-height: 44px; }
+.stat-foot { text-align: center; margin: 0; }
+.stat-refresh { width: auto; min-height: 44px; padding: 0 4px; border: 0; cursor: pointer; font: inherit; font-weight: 700; }
+@media (min-width: 720px) {
+  .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .stat-gas-stats { grid-template-columns: repeat(4, 1fr); }
+  .stat-hero { padding: 28px 30px; }
+}
+/* phones: each transaction row becomes a small labelled card */
+@media (max-width: 640px) {
+  .stat-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .stat-table, .stat-table tbody, .stat-table tr, .stat-table td { display: block; width: 100%; }
+  .stat-table tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .stat-table tr:last-child { border-bottom: 0; }
+  .stat-table td { border: 0; padding: 2px 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .stat-table td::before { content: attr(data-th); font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+}
+@media (max-width: 640px) { .stat-gas-stats div:last-child { grid-column: auto; } }

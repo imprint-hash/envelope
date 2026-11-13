@@ -1,0 +1,59 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  forge:
+    name: Contracts (forge build + unit, fuzz, invariant, attack tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable
+      - name: forge build
+        run: forge build --sizes
+      - name: forge test (offline)
+        run: forge test -vvv --no-match-path "test/*fork*"
+
+  fork:
+    name: Mezo testnet fork tests
+    runs-on: ubuntu-latest
+    # The public Mezo RPC can be flaky or rate-limited; a red fork job must not block the build.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable
+      - name: forge test (fork of Mezo testnet)
+        run: forge test -vvv --fork-url https://rpc.test.mezo.org --match-path "test/*fork*"
+
+  node:
+    name: Web + relayer (node --test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: npm ci
+        run: npm ci --ignore-scripts
+      - name: node --test
+        run: node --test test/node/*.test.mjs
