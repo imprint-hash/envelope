@@ -1,15 +1,16 @@
-/* Black with one Mezo pink accent (layout after the user's Stitch reference). */
+/* Black with Mezo pink, Alibi-style type (Outfit / Manrope / IBM Plex Mono), grid + aurora ground. */
 :root {
   --bg: #0a0a0c;
-  --surface: #141418;
-  --surface-2: #1c1c22;
+  --surface: #121216;
+  --surface-2: #1a1a20;
   --surface-3: #25252d;
-  --ink: #f6f6f8;
-  --muted: #a0a0ab;
-  --line: #2c2c35;
+  --ink: #f6f2ee;
+  --muted: #a3a1ad;
+  --line: #2a2a33;
   --brand: #ff0a5c;          /* Mezo pink */
-  --accent: #ff1f6b;
-  --accent-deep: #b8003f;
+  --accent: #ff0a5c;
+  --accent-2: #ff4f8a;
+  --accent-deep: #c30046;
   --accent-ink: #ffffff;
   --accent-soft: #3a0f22;
   --ok: #5fe3a1;   --ok-soft: #0f2a1d;
@@ -17,8 +18,9 @@
   --err: #ff8f86;  --err-soft: #34130f;
   --radius: 24px;
   --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 18px 40px -20px rgba(0,0,0,.9);
-  --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font: Manrope, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --display: Outfit, Manrope, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -579,3 +581,83 @@ main.page-stats { max-width: 960px; }
 .recv.choice .chev { align-self: center; }
 .recv .quote { display: block; margin-top: 6px; font-weight: 700; color: var(--paper-ink); font-variant-numeric: tabular-nums; }
 .recv:disabled { opacity: .7; cursor: progress; }
+
+/* ===== Alibi skin (Wave 2): grid + aurora ground, Outfit display, Plex Mono labels, envelope hero ===== */
+body {
+  background:
+    radial-gradient(1100px 600px at 80% 110%, #ff0a5c2e, transparent 70%),
+    radial-gradient(900px 500px at 0% 105%, #ff4f8a12, transparent 70%),
+    radial-gradient(1200px 700px at 50% -20%, #1d1520, transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(#ffffff07 1px, transparent 1px), linear-gradient(90deg, #ffffff07 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+body > * { position: relative; z-index: 1; }
+
+h1, h2, h3, .brand, .page-title, .done-title, .gift-title, .loan-title,
+.big-amount, .v-amount, .sum-big, .row-amount, .stat-value, .stat-hero-amount, .amount-prefix, .amount-row .amount-input {
+  font-family: var(--display);
+}
+h1, h2, h3 { font-weight: 700; letter-spacing: -.035em; }
+h1 { letter-spacing: -.04em; }
+em { font-style: normal; color: var(--accent); }
+
+.eyebrow, .label, .label-sm, .field-label, .stat-label, .v-label, .net-pill, .banner-tag,
+.tag, .v-tag, .stat-table th, .kick {
+  font-family: var(--mono); font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+}
+
+/* cards: Alibi glass (white "paper" cards keep their own look) */
+.card:not(.amount-box):not(.gift-money):not(.loan-card):not(.stat-gas):not(.share):not(.recv):not(.stat) {
+  background: linear-gradient(160deg, #1c1219, #111014);
+  border: 1px solid #ffffff1c;
+  box-shadow: 0 30px 80px -30px #000c, inset 0 1px 0 #ffffff12;
+}
+.top { border-bottom-color: #ffffff12; backdrop-filter: blur(8px); }
+.btn-primary { box-shadow: 0 12px 30px -12px #ff0a5cb3; }
+.topnav a[aria-current="page"] { background: #ff0a5c1f; color: var(--accent-2); }
+
+/* home hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 32px; align-items: center; padding: 28px 4px 40px; }
+.kick { color: var(--accent); font-size: .8rem; margin: 0 0 14px; }
+.hero-title { font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1.02; margin: 0 0 16px; text-wrap: balance; }
+.hero-text { font-size: clamp(1.05rem, 1.6vw, 1.3rem); color: #d9d6d2; max-width: 36ch; margin: 0 0 20px; }
+.hero-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 999px; border: 1px solid #ffffff26; background: #ffffff0b; font-weight: 600; font-size: .92rem; }
+.pill i { width: 9px; height: 9px; border-radius: 3px; background: var(--accent); }
+.hero-art { display: grid; place-items: center; padding-top: 130px; }
+
+/* the envelope: flap opens, letter rises */
+.env { width: min(300px, 100%); aspect-ratio: 1.45; position: relative; perspective: 1200px; filter: drop-shadow(0 30px 60px #ff0a5c40); }
+.env .back { position: absolute; inset: 0; border-radius: 16px; background: linear-gradient(160deg, #ff2a6f, #c30046); }
+.env .letter { position: absolute; left: 8%; right: 8%; top: 8%; height: 70%; z-index: 1; display: grid; place-items: start center; padding-top: 7%;
+  border-radius: 10px; background: var(--ink); color: #0a0a0c; text-align: center; animation: env-rise 5.5s ease-in-out infinite; }
+.env .letter b { font: 800 clamp(2rem, 4vw, 2.7rem) var(--display); letter-spacing: -.03em; display: block; }
+.env .letter span { font: 500 .72rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #6b2a43; }
+.env .front { position: absolute; inset: 0; border-radius: 16px; overflow: hidden; z-index: 2; }
+.env .front::before, .env .front::after { content: ""; position: absolute; bottom: 0; width: 50.5%; height: 100%; }
+.env .front::before { left: 0; clip-path: polygon(0 0, 100% 56%, 100% 100%, 0 100%); background: #f2195f; }
+.env .front::after { right: 0; clip-path: polygon(100% 0, 0 56%, 0 100%, 100% 100%); background: #e00a52; }
+.env .bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: 2; background: #ff3b77; clip-path: polygon(0 100%, 50% 24%, 100% 100%); border-radius: 0 0 16px 16px; }
+.env .flap { position: absolute; left: 0; right: 0; top: 0; height: 60%; background: #ff5a8e; clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform-origin: top; animation: env-flap 5.5s ease-in-out infinite; z-index: 3; }
+@keyframes env-flap { 0%, 12% { transform: rotateX(0deg); z-index: 3; } 26% { z-index: 0; } 30%, 78% { transform: rotateX(178deg); z-index: 0; } 92% { z-index: 3; } 96%, 100% { transform: rotateX(0deg); z-index: 3; } }
+@keyframes env-rise { 0%, 24% { transform: translateY(0); } 42%, 72% { transform: translateY(-80%); } 88%, 100% { transform: translateY(0); } }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; gap: 8px; padding: 12px 0 28px; }
+  .hero-art { padding-top: 120px; }
+  .env { width: min(260px, 72vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .env .flap { animation: none; transform: rotateX(178deg); z-index: 0; }
+  .env .letter { animation: none; transform: translateY(-80%); }
+}
+
+/* mono labels: tighter where space is short */
+.stat-label, .v-tag, .tag, .net-pill, .label-sm { letter-spacing: .07em; }
+.v-tag, .tag { white-space: nowrap; }

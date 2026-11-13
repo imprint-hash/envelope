@@ -21,7 +21,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e6004f'/%3E%3Crect x='14' y='20' width='36' height='26' rx='5' fill='none' stroke='white' stroke-width='4'/%3E%3Cpath d='M16 23l16 12 16-12' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -39,13 +39,16 @@
     </div>
   </header>
   <main class="page-send">
-    <section class="banner">
-      <span class="banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>
-      <div>
-        <p class="banner-tag"><span class="tag">No wallet needed to receive</span> Dollar links on Mezo</p>
-        <p class="banner-text">Send dollars to anyone with a link. They tap it and the money is theirs. No app, no sign-up, no crypto setup.</p>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="kick">Dollar links on Mezo</p>
+        <h1 class="hero-title">Send dollars to anyone with a <em>link</em>.</h1>
+        <p class="hero-text">They tap it and the money is theirs. No app, no sign-up, no crypto setup.</p>
+        <p class="hero-pills"><span class="pill"><i></i>No wallet needed to receive</span><span class="pill"><i></i>Zero fees to receive</span></p>
       </div>
-      <span class="pill-ok">Zero fees to receive</span>
+      <div class="hero-art" aria-hidden="true">
+        <div class="env"><div class="back"></div><div class="letter"><div><b>$50.00</b><span>Happy birthday Mum</span></div></div><div class="bottom"></div><div class="front"></div><div class="flap"></div></div>
+      </div>
     </section>
     <div class="send-grid">
       <div id="app" class="app" aria-live="polite">
@@ -71,7 +74,9 @@
       <span class="muted small">Dollars by link, on Mezo. Testnet demo: test MUSD has no cash value.</span>
       <nav class="foot-links" aria-label="Footer">
         <a href="https://github.com/imprint-hash/envelope" target="_blank" rel="noopener noreferrer">Code</a>
-        <a href="https://explorer.test.mezo.org/address/0x2330b264BF90E94F4926fD819c1281F799005c01" target="_blank" rel="noopener noreferrer">Contract</a>
+        <a href="https://explorer.test.mezo.org/address/0x06b4B5A507FDb61d6d082007ab48aD76B26dFa26" target="_blank" rel="noopener noreferrer">Contract</a>
+        <a href="https://explorer.test.mezo.org/address/0x2330b264BF90E94F4926fD819c1281F799005c01" target="_blank" rel="noopener noreferrer">Wave 1 contract</a>
+        <a href="/deck/">Deck</a>
       </nav>
     </div>
   </footer>

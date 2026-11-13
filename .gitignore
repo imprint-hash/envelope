@@ -6,3 +6,4 @@ broadcast/
 .vercel/
 .vercel
 .env*
+.shots/
