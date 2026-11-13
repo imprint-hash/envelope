@@ -19,7 +19,7 @@ Everything LinkEscrow does (create, createWithPermit, claimFor with EIP-712 link
 notes, idsOf, getDeposit, reentrancy guard, safe transfers, low-s checks), plus:
 
 1. **Self-funding gas (fee).** `FEE_BPS = 50` (0.5%), immutable, hard cap 100 bps checked in constructor.
-   On every create, `fee = amount * FEE_BPS / 10_000` stays in the contract's `gasFund`; the envelope holds `amount - fee`.
+   **The sender pays the fee on top** (user decision, 13 Nov): on every create the contract pulls `amount + fee` (fee = `amount * FEE_BPS / 10_000`, rounded up); `fee` goes to `gasFund`; the envelope holds exactly `amount`, which is exactly what the recipient receives.
    `relayerReward` (immutable, e.g. 0.05 MUSD, ≤ 1 MUSD) is paid from `gasFund` to `msg.sender` on `claimFor` and on
    `createFor` when the fund can cover it (never touches envelope money). Surplus above a buffer can be withdrawn only
    to an immutable `treasury` via `sweepSurplus()` (anyone may call; it always pays `treasury`). No owner, no admin keys.
@@ -33,7 +33,7 @@ notes, idsOf, getDeposit, reentrancy guard, safe transfers, low-s checks), plus:
    The relayer flow is: (1) submit Mezo `withdrawMUSDWithSignature(..., borrower = sender, recipient = sender, ...)` so the
    borrowed MUSD lands in the sender's OWN wallet (no orphaned funds if anyone front-runs), then (2) `createFor`.
    The sender signs three typed messages and pays zero gas: Mezo WithdrawMUSD, MUSD Permit, Envelope CreateFor.
-3. Views for the UI: `feeFor(amount)`, `quote(amount) returns (net, fee)`, `gasFund()`, `nonces(sender)`.
+3. Views for the UI: `feeFor(amount)`, `quote(amount) returns (totalPaidBySender, fee)`, `gasFund()`, `nonces(sender)`.
 
 Tests (Foundry, no new installs; forge-std is vendored in lib/): unit tests for every path and revert, fuzz tests on
 amounts/fees, an invariant that `token.balanceOf(this) == sum(open envelope amounts) + gasFund`, attack tests (wrong
