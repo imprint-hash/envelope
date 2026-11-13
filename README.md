@@ -12,6 +12,16 @@ Your cousin in Houston sends $50 in MUSD. Your mum gets a WhatsApp message with 
 - **LinkEscrow (Wave 1, verified, still serves old links):** [`0x2330b264BF90E94F4926fD819c1281F799005c01`](https://explorer.test.mezo.org/address/0x2330b264BF90E94F4926fD819c1281F799005c01)
 - **Token:** testnet MUSD [`0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`](https://explorer.test.mezo.org/address/0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503) · chain 31611
 
+> **Judges, start here (2 minutes, no wallet needed)**
+> 1. Open the [live stats](https://envelope.vercel.app/stats): every number is read straight from the contracts, including the borrow-to-send envelope, the Mezo Pools claim and the gas fund.
+> 2. Click the three Wave 2 transactions below: a [real Mezo borrow](https://explorer.test.mezo.org/tx/0x1dcd6c488bde2e988effd742ff0137a6ee91367dc883cf6e39493dbd99d8905f), the [envelope it funded](https://explorer.test.mezo.org/tx/0x0103df33cf59763c010dff9b09b6833d5c6622224a6240b54a3be08c45724fa6), and a [claim straight into Mezo Pools](https://explorer.test.mezo.org/tx/0xccc8266439135fc8bee0046bb1d91a12c5063934f17b48c5e10051100a1eb7fb).
+> 3. Flip through the [deck](https://envelope.vercel.app/deck/) ([PDF](docs/Envelope-deck.pdf)).
+> 4. Want to try it? Get test BTC at [faucet.test.mezo.org](https://faucet.test.mezo.org), open [envelope.vercel.app](https://envelope.vercel.app) and send yourself a link.
+
+| Send | Live stats | Deck |
+|---|---|---|
+| ![Send page](docs/img/home.png) | ![Stats page](docs/img/stats.png) | ![Deck](docs/img/deck.png) |
+
 ## What's new in Wave 2
 
 | Wave 1 judge feedback | What we built | Proof |
