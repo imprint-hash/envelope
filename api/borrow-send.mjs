@@ -18,7 +18,7 @@ const EXPLORER_TX = "https://explorer.test.mezo.org/tx/";
 const MAX_BODY = 4096;
 const HALF_N = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0n;
 const MIN_GAS_BALANCE = parseEther("0.001");
-const MAX_GAS_BORROW = 3_000_000n;   // zero hints walk the sorted trove list: heavier, still correct
+const MAX_GAS_BORROW = 3_000_000n;   // with insert hints a borrow is ~400k; zero hints walk all troves (~6.5M on testnet)
 const MAX_GAS_CREATE = 400_000n;
 const MIN_AMOUNT = 10n ** 18n;               // $1
 const MAX_AMOUNT = 100_000n * 10n ** 18n;    // $100,000
@@ -36,6 +36,7 @@ const MEZO = {
   borrowerOpsSignatures: "0xD757e3646AF370b15f32EB557F0F8380Df7D639e",
   priceFeed: "0x86bCF0841622a5dAC14A313a15f96A95421b9366",
   musd: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+  sortedTroves: "0x722E4D24FD6Ff8b0AC679450F3D91294607268fA", // = BorrowerOperations.sortedTroves()
 };
 const TROVE_ABI = [
   "function getTroveStatus(address) view returns (uint8)",
@@ -49,6 +50,8 @@ const BOS_ABI = [
   "function withdrawMUSDWithSignature(uint256 _amount, address _upperHint, address _lowerHint, address _borrower, address _recipient, bytes _signature, uint256 _deadline)",
 ];
 const PRICE_ABI = ["function fetchPrice() view returns (uint256)"];
+const SORTED_ABI = ["function findInsertPosition(uint256 _NICR, address _prevId, address _nextId) view returns (address, address)"];
+const NICR_PRECISION = 10n ** 20n; // Mezo nominal ratio = coll * 1e20 / principal
 const MUSD_ABI = [
   "function nonces(address) view returns (uint256)",
   "function balanceOf(address) view returns (uint256)",
@@ -87,6 +90,7 @@ const MSG = {
   MethodNotAllowed: "Please use the Send page.",
   TooLarge: "That request was too big. Please try again.",
   NotConfigured: "Paying from Bitcoin isn't switched on yet. You can pay with MUSD for now.",
+  BorrowTooHeavy: "Mezo's network is busy and this loan would cost too much gas right now. Nothing was borrowed. Please try again in a few minutes, or pay with MUSD.",
   Internal: "Something went wrong on our side. Nothing was borrowed. Please try again in a minute.",
 };
 
@@ -173,6 +177,7 @@ function getCtx() {
     bos: new Contract(MEZO.borrowerOpsSignatures, BOS_ABI, wallet),
     price: new Contract(MEZO.priceFeed, PRICE_ABI, provider),
     musd: new Contract(MEZO.musd, MUSD_ABI, provider),
+    sorted: new Contract(MEZO.sortedTroves, SORTED_ABI, provider),
   };
   return ctx;
 }
@@ -267,7 +272,7 @@ export default async function handler(req, res) {
 
   const c = getCtx();
   if (!c) return fail(res, 503, "NotConfigured");
-  const { provider, wallet, escrow, escrowAddr, trove, bo, bos, price: priceFeed, musd } = c;
+  const { provider, wallet, escrow, escrowAddr, trove, bo, bos, price: priceFeed, musd, sorted } = c;
 
   // 3. input shape (deadlines checked against chain time)
   let block;
@@ -317,7 +322,19 @@ export default async function handler(req, res) {
     // 8. simulate the borrow (and the envelope too, when the sender already holds enough MUSD).
     //    Before the borrow lands the sender usually can't fund createFor yet, so its signature and
     //    permit were checked off-chain above and createFor is simulated again right after step 9.
-    const borrowArgs = [total, ZeroAddress, ZeroAddress, v.sender, v.sender, v.mezoSig, v.mezoDeadline];
+    // Insert hints: where the trove lands in Mezo's sorted list after this borrow. Found with a free view call,
+    // they cut the borrow from ~6.5M gas (walking every trove) to ~400k. Hints aren't part of the signed message,
+    // and a stale hint only costs gas, never correctness. Any failure falls back to zero hints.
+    let upperHint = ZeroAddress, lowerHint = ZeroAddress;
+    if (sorted && dc.coll > 0n) {
+      try {
+        const newNicr = (dc.coll * NICR_PRECISION) / (dc.principal + total + fee);
+        [upperHint, lowerHint] = await sorted.findInsertPosition(newNicr, ZeroAddress, ZeroAddress);
+      } catch (e) {
+        console.error("hint lookup failed", { sender: v.sender, code: e?.code || "unknown" });
+      }
+    }
+    const borrowArgs = [total, upperHint, lowerHint, v.sender, v.sender, v.mezoSig, v.mezoDeadline];
     const createArgs = encodeCreateFor(v);
     let borrowGas;
     try {
@@ -333,7 +350,10 @@ export default async function handler(req, res) {
       }
     }
     const borrowLimit = (borrowGas * 13n) / 10n;
-    if (borrowLimit > MAX_GAS_BORROW) return fail(res, 500, "Internal");
+    if (borrowLimit > MAX_GAS_BORROW) {
+      console.error("borrow gas over cap", { sender: v.sender, gas: borrowGas.toString() });
+      return fail(res, 503, "BorrowTooHeavy");
+    }
 
     // 9. borrow `total`: MUSD goes to the sender's own wallet
     const btx = await sendTx(bos.withdrawMUSDWithSignature, borrowArgs, borrowLimit);
