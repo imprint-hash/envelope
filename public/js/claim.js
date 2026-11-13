@@ -1,4 +1,5 @@
-import { CHAIN, ESCROW_ADDRESS, STORE, STATUS, CLAIM_TYPES, V2_LINK_PREFIX } from "./config.js";
+import { CHAIN, ESCROW_ADDRESS, ESCROW_ADDRESS_V2, MUSD, STORE, STATUS, CLAIM_TYPES, V2_LINK_PREFIX } from "./config.js";
+import { MODE, CLAIM_WITH_OPTION_TYPES, envelopeV2Domain, quoteOptions, gasTipLocal } from "./abi-v2.js";
 import {
   ethers, h, render, busy, notice, applyAppName, escrowConfigured, escrowReadFor, v2Configured, musdRead, readProvider,
   latestTimestamp, fmtUsd, fmtUsdShort, fmtMusd, timeLeft, shortAddr, copyText, load, save, hasWallet, connect,
@@ -144,6 +145,12 @@ async function doClaim(parsed, d, note, now, mode) {
     return showReady(parsed, d, note, now, isRejected(e) ? "No problem. Tap Claim when you're ready." : ERRORS.ZeroRecipient);
   }
 
+  // V2 links: the wallet is ready, now the recipient chooses how to keep the money.
+  if (parsed.v === 2) return showChoices(parsed, d, note, now, mode, recipient);
+  return claimPlain(parsed, d, note, now, mode, recipient);
+}
+
+async function claimPlain(parsed, d, note, now, mode, recipient) {
   render(root, busy("Claiming... this takes a few seconds."));
   let sig;
   try {
@@ -159,22 +166,32 @@ async function doClaim(parsed, d, note, now, mode) {
     return showReady(parsed, d, note, now, ERRORS.BadSignature);
   }
 
+  const back = (text) => (parsed.v === 2 ? showChoices(parsed, d, note, now, mode, recipient, text) : showReady(parsed, d, note, now, text));
+  const body = await postClaim({ id: parsed.id.toString(), recipient, signature: sig, v: parsed.v === 2 ? 2 : 1 }, parsed, back);
+  if (!body) return;
+  return finishClaim(parsed, d, note, now, mode, recipient, body, null, back);
+}
+
+// Sends the signed claim to our relayer. Returns the body on success, or null after showing the error.
+async function postClaim(payload, parsed, back) {
   let res, body;
   try {
-    res = await fetch("/api/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: parsed.id.toString(), recipient, signature: sig, v: parsed.v === 2 ? 2 : 1 }),
-    });
+    res = await fetch("/api/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     body = await res.json().catch(() => ({}));
   } catch {
-    return showReady(parsed, d, note, now, ERRORS.Network);
+    back(ERRORS.Network);
+    return null;
   }
   if (!res.ok || !body.ok) {
-    if (body.code === "AlreadyClaimed") return showClaimed(parsed.v, parsed.id);
-    return showReady(parsed, d, note, now, body.error || "Something went wrong on our side. Your money is safe in the link. Please try again in a minute.");
+    if (body.code === "AlreadyClaimed") showClaimed(parsed.v, parsed.id);
+    else back(body.error || "Something went wrong on our side. Your money is safe in the link. Please try again in a minute.");
+    return null;
   }
+  return body;
+}
 
+// option = null for a plain claim, or { mode, quote } for a Mezo Pools option.
+async function finishClaim(parsed, d, note, now, mode, recipient, body, option, back) {
   // Remember this claim on this phone so reopening the link can say "It's in your wallet".
   const claims = load(STORE.claims, {});
   const ck = claimKey(parsed.v, parsed.id);
@@ -186,12 +203,108 @@ async function doClaim(parsed, d, note, now, mode) {
     const receipt = await readProvider().waitForTransaction(body.txHash, 1, 60000);
     if (receipt && receipt.status !== 1) {
       delete claims[ck]; save(STORE.claims, claims);
-      return showReady(parsed, d, note, now, "That didn't go through. Your money is safe in the link. Please try again.");
+      return back("That didn't go through. Your money is safe in the link. Please try again.");
     }
   } catch { /* timed out: the tx was broadcast, show success with the explorer link */ }
 
   history.replaceState(null, "", claimedPath(parsed.v, parsed.id));
+  if (option) return showOptionDone(d.amount, recipient, body.txHash || null, mode, option);
   showDone(d.amount, recipient, body.txHash || null, mode, parsed.v);
+}
+
+// ---------- Mezo Pools choices (V2 links) ----------
+const at = (addr, abi) => new ethers.Contract(addr, abi, readProvider());
+const fmtBtc = (wei) => {
+  const n = Number(ethers.formatUnits(wei, 18));
+  return n === 0 ? "0" : n.toLocaleString(undefined, { maximumSignificantDigits: 3 });
+};
+
+function showChoices(parsed, d, note, now, mode, recipient, errorText) {
+  const amount = d.amount;
+  const choice = (title, sub, extra, onclick, { primary, disabled } = {}) => h("button", {
+    class: `recv choice${primary ? " primary" : ""}`, type: "button", onclick, disabled: disabled || undefined,
+  }, h("span", {}, h("b", {}, title), h("small", {}, sub), extra || null), h("span", { class: "chev", "aria-hidden": "true" }, "›"));
+
+  const earnQuote = h("small", { class: "quote" }, "Checking today's rates…");
+  const tipQuote = h("small", { class: "quote" }, "Checking today's rates…");
+  let quotes = null;
+  const earnBtn = choice("Keep it earning",
+    "It goes into a Mezo Pools savings spot (dollars paired with USDC). It earns a share of trading fees, and you can take it out any time.",
+    earnQuote, () => quotes && claimOption(parsed, d, note, now, mode, recipient, MODE.EARN, quotes.earn), { disabled: true });
+  const tipBtn = choice("Get a little Bitcoin for fees",
+    `We swap ${fmtUsd(gasTipLocal(amount))} into BTC, so you can pay network fees yourself later. The rest stays as dollars.`,
+    tipQuote, () => quotes && claimOption(parsed, d, note, now, mode, recipient, MODE.GAS_TIP, quotes.gasTip), { disabled: true });
+
+  render(root, h("section", { class: "card choices" },
+    h("p", { class: "eyebrow" }, "Your wallet is ready"),
+    h("h1", {}, `How would you like to keep your ${fmtUsdShort(amount)}?`),
+    h("p", { class: "muted small" }, "Sent to ", h("code", {}, shortAddr(recipient)), " · We pay the network fee for every choice"),
+    errorText ? notice("error", errorText) : null,
+    h("div", { class: "recv-box" },
+      choice("Keep it as dollars", `The full ${fmtUsd(amount)} lands in your wallet as digital dollars, ready to spend or send.`,
+        null, () => claimPlain(parsed, d, note, now, mode, recipient), { primary: true }),
+      earnBtn,
+      tipBtn,
+    ),
+    h("p", { class: "muted small" }, "If prices move more than 1% before it goes through, nothing happens and your money stays safe in the link."),
+  ));
+
+  quoteOptions({ env: escrowReadFor(2), at, musd: MUSD, amount }).then((q) => {
+    if (!q) throw new Error("off");
+    quotes = q;
+    if (q.earn.lp > 0n) {
+      earnQuote.textContent = `Worth about ${fmtUsd(q.earn.valueUsd)} in the pool today`;
+      earnBtn.disabled = false;
+    } else earnQuote.textContent = "Not available for this amount right now.";
+    if (q.gasTip.btcOut > 0n) {
+      tipQuote.textContent = `About ${fmtBtc(q.gasTip.btcOut)} BTC (from ${fmtUsd(q.gasTip.tip)}) + ${fmtUsd(q.gasTip.musdRest)} as dollars`;
+      tipBtn.disabled = false;
+    } else tipQuote.textContent = "Not available for this amount right now.";
+  }).catch(() => {
+    earnQuote.textContent = "Not available right now.";
+    tipQuote.textContent = "Not available right now.";
+  });
+}
+
+async function claimOption(parsed, d, note, now, mode, recipient, optMode, quote) {
+  const back = (text) => showChoices(parsed, d, note, now, mode, recipient, text);
+  render(root, busy(optMode === MODE.EARN ? "Putting your money to work... this takes a few seconds." : "Getting your Bitcoin... this takes a few seconds."));
+  let sig, deadline;
+  try {
+    deadline = (await latestTimestamp()) + 600n; // 10 minutes to land
+    const value = { id: parsed.id, recipient, mode: optMode, minOut: quote.minOut, deadline };
+    const domain = envelopeV2Domain(ESCROW_ADDRESS_V2, CHAIN.id);
+    // The link key signs the typed message here in the browser. Check our digest against the
+    // contract's own first, so a mismatch can never reach the relayer.
+    const onChain = await escrowReadFor(2).claimWithOptionDigest(parsed.id, recipient, optMode, quote.minOut, deadline);
+    if (ethers.TypedDataEncoder.hash(domain, CLAIM_WITH_OPTION_TYPES, value) !== onChain) throw new Error("digest");
+    sig = await new ethers.Wallet(parsed.pk).signTypedData(domain, CLAIM_WITH_OPTION_TYPES, value);
+  } catch {
+    return back(ERRORS.BadSignature);
+  }
+  const body = await postClaim({
+    id: parsed.id.toString(), recipient, mode: optMode, minOut: quote.minOut.toString(), deadline: deadline.toString(), sig, v: 2,
+  }, parsed, back);
+  if (!body) return;
+  return finishClaim(parsed, d, note, now, mode, recipient, body, { mode: optMode, quote }, back);
+}
+
+async function showOptionDone(amount, recipient, txHash, mode, option) {
+  const earn = option.mode === MODE.EARN;
+  const q = option.quote;
+  render(root, h("section", { class: "card done" },
+    h("p", { class: "big-amount", "aria-hidden": "true" }, fmtUsd(amount)),
+    h("h1", {}, earn ? `Your ${fmtUsdShort(amount)} is now earning.` : `${fmtUsdShort(q.musdRest)} is yours, plus a little Bitcoin.`),
+    earn
+      ? h("p", { class: "lead" }, "It's in a Mezo Pools savings spot owned by your wallet. It earns a share of trading fees, and you can take it out any time.")
+      : h("p", { class: "lead" }, `About ${fmtBtc(q.btcOut)} BTC is in your wallet for network fees.`),
+    await balanceLine(recipient),
+    h("p", { class: "muted small" }, "Sent to ", h("code", {}, shortAddr(recipient))),
+    txHash ? h("a", { class: "btn btn-secondary", href: `${CHAIN.explorer}/tx/${txHash}`, target: "_blank", rel: "noopener noreferrer" }, "See it on the explorer") : null,
+  ), sendForwardCard());
+  confetti();
+  if (!earn) root.append(await cashOutCard(q.musdRest));
+  if (mode === "local") renderWallet(true, "Keep this money safe: save your recovery phrase.");
 }
 
 async function balanceLine(addr) {

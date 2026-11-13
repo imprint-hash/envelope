@@ -7,6 +7,45 @@ interface IERC20Like {
     function balanceOf(address) external view returns (uint256);
 }
 
+/// @dev Mezo Pools router (Velodrome/Aerodrome-style), testnet 0x9a1f…E7E9. Signatures checked
+///      against the verified ABI on the Mezo explorer.
+interface IPoolsRouter {
+    struct Route {
+        address from;
+        address to;
+        bool stable;
+        address factory;
+    }
+
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        Route[] calldata routes,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
+
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        bool stable,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to,
+        uint256 deadline
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
+
+    /// @return ratio share of tokenA (1e18 = 100%) to swap into tokenB before adding liquidity
+    function quoteStableLiquidityRatio(address tokenA, address tokenB, address factory)
+        external
+        view
+        returns (uint256 ratio);
+
+    function poolFor(address tokenA, address tokenB, bool stable, address factory) external view returns (address);
+}
+
 /// @title EnvelopeV2
 /// @notice Lock MUSD behind a one-time "link key". Whoever holds the link key can
 ///         authorise a claim to any recipient (EIP-712 signature); a relayer submits it.
@@ -24,6 +63,13 @@ interface IERC20Like {
 ///         Money in envelopes and money in `gasFund` are tracked separately at all times:
 ///         token.balanceOf(this) == sum(open envelope amounts) + gasFund.
 ///         No owner, no admin keys, nothing upgradeable.
+///
+///         Mezo Pools claim options (`claimWithOption`, also signed by the link key, also gasless):
+///         - EARN: the envelope becomes a MUSD/stable Mezo Pools liquidity position owned by the
+///           recipient (it earns trading fees and can be withdrawn any time).
+///         - GAS_TIP: a small slice (min(1 MUSD, 5%)) is swapped to BTC so the recipient has gas;
+///           the rest arrives as MUSD.
+///         Either way the whole envelope leaves in one transaction or nothing happens.
 contract EnvelopeV2 {
     enum Status {
         None,
@@ -49,6 +95,16 @@ contract EnvelopeV2 {
         string note;
     }
 
+    /// @dev Mezo Pools wiring, fixed at deploy. All zero = claim options switched off.
+    struct PoolsConfig {
+        address router; // Mezo Pools Router
+        address factory; // Mezo PoolFactory (used in swap routes)
+        address partner; // stable partner of MUSD for EARN (mUSDC)
+        address btc; // BTC token on Mezo (same balance as native BTC)
+        address earnPool; // MUSD/partner stable pool (its LP token is the recipient's position)
+        address btcPool; // MUSD/BTC volatile pool
+    }
+
     /// @dev EIP-2612 permit for amount + fee, owner = sender, spender = this contract.
     struct PermitArgs {
         uint256 deadline;
@@ -62,8 +118,14 @@ contract EnvelopeV2 {
     uint256 public constant MAX_FEE_BPS = 100; // 1% hard cap
     uint256 public constant MAX_RELAYER_REWARD = 1e18; // 1 MUSD hard cap
     uint256 public constant BUFFER_REWARDS = 100; // sweep keeps 100 relayer rewards in the fund
+    uint8 public constant MODE_EARN = 1;
+    uint8 public constant MODE_GAS_TIP = 2;
+    uint256 public constant GAS_TIP_MAX = 1e18; // at most 1 MUSD becomes BTC
+    uint256 public constant GAS_TIP_BPS = 500; // ...and at most 5% of the envelope
 
     bytes32 public constant CLAIM_TYPEHASH = keccak256("Claim(uint256 id,address recipient)");
+    bytes32 public constant CLAIM_WITH_OPTION_TYPEHASH =
+        keccak256("ClaimWithOption(uint256 id,address recipient,uint8 mode,uint256 minOut,uint256 deadline)");
     bytes32 public constant CREATE_FOR_TYPEHASH = keccak256(
         "CreateFor(address sender,address link,uint256 amount,bytes32 noteHash,uint256 nonce,uint256 deadline)"
     );
@@ -78,6 +140,13 @@ contract EnvelopeV2 {
     uint256 public immutable FEE_BPS;
     uint256 public immutable relayerReward;
     uint256 public immutable sweepBuffer;
+
+    address public immutable router;
+    address public immutable factory;
+    address public immutable partner;
+    address public immutable btc;
+    address public immutable earnPool;
+    address public immutable btcPool;
 
     uint256 public nextId = 1;
     uint256 public gasFund;
@@ -95,6 +164,9 @@ contract EnvelopeV2 {
     event FeeTaken(uint256 indexed id, uint256 fee);
     event RelayerPaid(address indexed relayer, uint256 amount);
     event Swept(uint256 amount);
+    /// @param musdSent MUSD paid straight to the recipient (EARN: unused dust; GAS_TIP: amount - tip)
+    /// @param out EARN: LP tokens of `earnPool` minted to the recipient; GAS_TIP: BTC received
+    event ClaimedWithOption(uint256 indexed id, address indexed recipient, uint8 mode, uint256 musdSent, uint256 out);
 
     error ZeroAmount();
     error AmountTooLarge();
@@ -117,6 +189,12 @@ contract EnvelopeV2 {
     error FeeTooHigh();
     error RewardTooHigh();
     error NothingToSweep();
+    error PoolsDisabled();
+    error BadMode();
+    error AmountTooSmall();
+    error InsufficientOutput();
+    error BadPoolsConfig();
+    error RouterMisbehaved();
 
     modifier nonReentrant() {
         if (_lock != 1) revert Reentrancy();
@@ -125,7 +203,7 @@ contract EnvelopeV2 {
         _lock = 1;
     }
 
-    constructor(address token_, address treasury_, uint256 feeBps_, uint256 relayerReward_) {
+    constructor(address token_, address treasury_, uint256 feeBps_, uint256 relayerReward_, PoolsConfig memory pools_) {
         if (token_.code.length == 0) revert NotAContract();
         if (treasury_ == address(0)) revert ZeroAddress();
         if (feeBps_ > MAX_FEE_BPS) revert FeeTooHigh();
@@ -135,6 +213,29 @@ contract EnvelopeV2 {
         FEE_BPS = feeBps_;
         relayerReward = relayerReward_;
         sweepBuffer = relayerReward_ * BUFFER_REWARDS;
+        _checkPools(token_, pools_);
+        router = pools_.router;
+        factory = pools_.factory;
+        partner = pools_.partner;
+        btc = pools_.btc;
+        earnPool = pools_.earnPool;
+        btcPool = pools_.btcPool;
+    }
+
+    /// @dev Either everything is zero (options off) or every address is a contract and the
+    ///      router itself confirms both pools.
+    function _checkPools(address token_, PoolsConfig memory p) private view {
+        if (
+            p.router == address(0) && p.factory == address(0) && p.partner == address(0) && p.btc == address(0)
+                && p.earnPool == address(0) && p.btcPool == address(0)
+        ) return;
+        if (
+            p.router.code.length == 0 || p.factory.code.length == 0 || p.partner.code.length == 0
+                || p.btc.code.length == 0 || p.earnPool.code.length == 0 || p.btcPool.code.length == 0
+        ) revert BadPoolsConfig();
+        if (p.partner == token_ || p.btc == token_ || p.partner == p.btc) revert BadPoolsConfig();
+        if (IPoolsRouter(p.router).poolFor(token_, p.partner, true, p.factory) != p.earnPool) revert BadPoolsConfig();
+        if (IPoolsRouter(p.router).poolFor(token_, p.btc, false, p.factory) != p.btcPool) revert BadPoolsConfig();
     }
 
     // ------------------------------------------------------------------ create
@@ -234,6 +335,120 @@ contract EnvelopeV2 {
         _payRelayer(reward);
     }
 
+    /// @notice Claim into a Mezo Pools option instead of plain MUSD. Signed by the link key over
+    ///         ClaimWithOption(id, recipient, mode, minOut, deadline); any relayer may submit.
+    ///         If the pools can't deliver `minOut` the whole call reverts and the envelope stays
+    ///         Open, so a plain `claimFor` still works.
+    /// @param mode MODE_EARN (minOut = min LP tokens) or MODE_GAS_TIP (minOut = min BTC)
+    function claimWithOption(
+        uint256 id,
+        address recipient,
+        uint8 mode,
+        uint256 minOut,
+        uint256 deadline,
+        bytes calldata sig
+    ) external nonReentrant {
+        if (router == address(0)) revert PoolsDisabled();
+        if (mode != MODE_EARN && mode != MODE_GAS_TIP) revert BadMode();
+        if (block.timestamp > deadline) revert SignatureExpired();
+        Deposit storage d = deposits[id];
+        _checkOpen(d.status);
+        if (block.timestamp >= d.expiresAt) revert Expired();
+        if (
+            recipient == address(0) || recipient == address(this) || recipient == token || recipient == router
+                || recipient == partner || recipient == btc || recipient == earnPool || recipient == btcPool
+        ) revert ZeroRecipient();
+        if (_recover(claimWithOptionDigest(id, recipient, mode, minOut, deadline), sig) != d.link) {
+            revert BadSignature();
+        }
+
+        // Effects first: the envelope is spent and the reward booked before any external call.
+        d.status = Status.Claimed;
+        uint256 amount = d.amount;
+        uint256 reward = _takeReward(feeFor(amount) / 2);
+        emit Claimed(id, recipient, msg.sender, amount);
+
+        // Every other token here (other envelopes, gasFund incl. the booked reward) must still be
+        // here afterwards; only this envelope's `amount` may leave.
+        uint256 floor = IERC20Like(token).balanceOf(address(this)) - amount;
+        (uint256 musdSent, uint256 out) = mode == MODE_EARN
+            ? _earn(recipient, amount, minOut, deadline, floor)
+            : _gasTip(recipient, amount, minOut, deadline, floor);
+        emit ClaimedWithOption(id, recipient, mode, musdSent, out);
+        _payRelayer(reward);
+    }
+
+    /// @dev Swap the right share of MUSD to the stable partner, add both as liquidity with the
+    ///      LP tokens minted straight to the recipient, then hand back any unused dust.
+    function _earn(address recipient, uint256 amount, uint256 minLp, uint256 deadline, uint256 floor)
+        private
+        returns (uint256 musdSent, uint256 lp)
+    {
+        // The pool may be unbalanced, so "half" would leave a lot unused. The router's own
+        // ratio says how much MUSD to swap so both sides fit the pool.
+        uint256 swapIn = amount * IPoolsRouter(router).quoteStableLiquidityRatio(token, partner, factory) / 1e18;
+        if (swapIn == 0 || swapIn >= amount) revert AmountTooSmall();
+
+        uint256 partnerBefore = IERC20Like(partner).balanceOf(address(this));
+        _swap(swapIn, 0, partner, true, address(this), deadline);
+        uint256 got = IERC20Like(partner).balanceOf(address(this)) - partnerBefore;
+        if (got == 0) revert InsufficientOutput();
+
+        lp = _addLiquidity(recipient, amount - swapIn, got, deadline);
+        if (lp < minLp || lp == 0) revert InsufficientOutput();
+
+        musdSent = _musdLeft(floor);
+        if (musdSent != 0) _safeTransfer(recipient, musdSent);
+        uint256 partnerLeft = IERC20Like(partner).balanceOf(address(this)) - partnerBefore;
+        if (partnerLeft != 0) _safeTransferOf(partner, recipient, partnerLeft);
+    }
+
+    /// @dev addLiquidity with exact approvals (reset to 0 after); LP is minted to the recipient.
+    function _addLiquidity(address recipient, uint256 musdIn, uint256 partnerIn, uint256 deadline)
+        private
+        returns (uint256 lp)
+    {
+        uint256 lpBefore = IERC20Like(earnPool).balanceOf(recipient);
+        _safeApprove(token, router, musdIn);
+        _safeApprove(partner, router, partnerIn);
+        IPoolsRouter(router).addLiquidity(token, partner, true, musdIn, partnerIn, 0, 0, recipient, deadline);
+        _safeApprove(token, router, 0);
+        _safeApprove(partner, router, 0);
+        lp = IERC20Like(earnPool).balanceOf(recipient) - lpBefore;
+    }
+
+    /// @dev Swap min(1 MUSD, 5%) to BTC for the recipient, send the rest as MUSD.
+    function _gasTip(address recipient, uint256 amount, uint256 minBtc, uint256 deadline, uint256 floor)
+        private
+        returns (uint256 musdSent, uint256 btcOut)
+    {
+        uint256 tip = gasTipFor(amount);
+        if (tip == 0) revert AmountTooSmall();
+        uint256 btcBefore = IERC20Like(btc).balanceOf(recipient);
+        _swap(tip, minBtc, btc, false, recipient, deadline);
+        btcOut = IERC20Like(btc).balanceOf(recipient) - btcBefore;
+        if (btcOut < minBtc || btcOut == 0) revert InsufficientOutput();
+        musdSent = _musdLeft(floor);
+        if (musdSent != 0) _safeTransfer(recipient, musdSent);
+    }
+
+    /// @dev One-hop swap of MUSD with an exact approval that is reset to 0 afterwards.
+    function _swap(uint256 amountIn, uint256 minOut, address to, bool stable, address dest, uint256 deadline) private {
+        IPoolsRouter.Route[] memory r = new IPoolsRouter.Route[](1);
+        r[0] = IPoolsRouter.Route({from: token, to: to, stable: stable, factory: factory});
+        _safeApprove(token, router, amountIn);
+        IPoolsRouter(router).swapExactTokensForTokens(amountIn, minOut, r, dest, deadline);
+        _safeApprove(token, router, 0);
+    }
+
+    /// @dev MUSD of this envelope still held here. Reverts if the router took anything that
+    ///      wasn't this envelope's (impossible with exact approvals; checked anyway).
+    function _musdLeft(uint256 floor) private view returns (uint256) {
+        uint256 bal = IERC20Like(token).balanceOf(address(this));
+        if (bal < floor) revert RouterMisbehaved();
+        return bal - floor;
+    }
+
     /// @notice After expiry anyone may trigger the refund; money always goes to the sender.
     ///         The fee is not returned (it already paid for gas).
     function refund(uint256 id) external nonReentrant {
@@ -290,12 +505,26 @@ contract EnvelopeV2 {
         total = amount + fee;
     }
 
+    /// @notice MUSD that GAS_TIP turns into BTC: min(1 MUSD, 5% of the envelope).
+    function gasTipFor(uint256 amount) public pure returns (uint256 tip) {
+        tip = amount * GAS_TIP_BPS / 10_000;
+        if (tip > GAS_TIP_MAX) tip = GAS_TIP_MAX;
+    }
+
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
     function claimDigest(uint256 id, address recipient) public view returns (bytes32) {
         return _hashTyped(keccak256(abi.encode(CLAIM_TYPEHASH, id, recipient)));
+    }
+
+    function claimWithOptionDigest(uint256 id, address recipient, uint8 mode, uint256 minOut, uint256 deadline)
+        public
+        view
+        returns (bytes32)
+    {
+        return _hashTyped(keccak256(abi.encode(CLAIM_WITH_OPTION_TYPEHASH, id, recipient, mode, minOut, deadline)));
     }
 
     function createForDigest(
@@ -358,7 +587,16 @@ contract EnvelopeV2 {
     }
 
     function _safeTransfer(address to, uint256 amount) private {
-        (bool ok, bytes memory ret) = token.call(abi.encodeWithSelector(0xa9059cbb, to, amount));
+        _safeTransferOf(token, to, amount);
+    }
+
+    function _safeTransferOf(address t, address to, uint256 amount) private {
+        (bool ok, bytes memory ret) = t.call(abi.encodeWithSelector(0xa9059cbb, to, amount));
+        if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) revert TransferFailed();
+    }
+
+    function _safeApprove(address t, address spender, uint256 amount) private {
+        (bool ok, bytes memory ret) = t.call(abi.encodeWithSelector(0x095ea7b3, spender, amount));
         if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) revert TransferFailed();
     }
 

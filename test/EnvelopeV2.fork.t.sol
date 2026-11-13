@@ -69,7 +69,21 @@ contract EnvelopeV2ForkTest is Test {
             vm.skip(true);
             return;
         }
-        env = new EnvelopeV2(MUSD, treasury, 50, REWARD);
+        // Same Mezo Pools wiring as script/DeployV2.s.sol (the constructor checks it against the real router).
+        env = new EnvelopeV2(
+            MUSD,
+            treasury,
+            50,
+            REWARD,
+            EnvelopeV2.PoolsConfig({
+                router: 0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9,
+                factory: 0x4947243CC818b627A5D06d14C4eCe7398A23Ce1A,
+                partner: 0xe1a26db653708A2AD8F824E92Db9852410e33A59,
+                btc: 0x7b7C000000000000000000000000000000000000,
+                earnPool: 0x525F049A4494dA0a6c87E3C4df55f9929765Dc3e,
+                btcPool: 0xd16A5Df82120ED8D626a1a15232bFcE2366d6AA9
+            })
+        );
         (borrower, borrowerPk) = makeAddrAndKey("fork-borrower");
         (link, linkPk) = makeAddrAndKey("fork-link");
     }
