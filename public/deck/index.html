@@ -187,7 +187,7 @@
     <tr><td>BorrowerOperations</td><td class="mono">getBorrowingFee · borrowingRate · MCR · CCR</td><td>Exact cost and safety lines</td></tr>
     <tr><td>TroveManager</td><td class="mono">getTroveStatus · getEntireDebtAndColl · getCurrentICR · checkRecoveryMode</td><td>Loan-health guard</td></tr>
     <tr><td>PriceFeed</td><td class="mono">fetchPrice</td><td>Live BTC price</td></tr>
-    <tr><td>Mezo Pools</td><td class="mono">__POOLS__</td><td>__POOLSWHY__</td></tr>
+    <tr><td>Mezo Pools</td><td class="mono">Router: swapExactTokensForTokens · addLiquidity · quoteStableLiquidityRatio · poolFor</td><td>Claim straight into a MUSD/mUSDC LP position, or swap a little MUSD to BTC for gas</td></tr>
     <tr><td>MUSD</td><td class="mono">EIP-2612 permit · transfers</td><td>One-signature funding</td></tr>
   </table>
   <div class="foot"><span>Envelope</span><span>05</span></div>
@@ -232,7 +232,7 @@
 <section class="slide">
   <div class="kick">Proof, on-chain</div>
   <h2>It works. Check it yourself.</h2>
-  <table>__PROOF__</table>
+  <table><tr><th>What happened</th><th>Transaction</th></tr><tr><td>EnvelopeV2 deployed and verified on the Mezo explorer</td><td class="mono"><a style="color:inherit" href="https://explorer.test.mezo.org/tx/0x731b43e5b7bfb45f940bd0970fd31bb565f5e6ed8386bc57c5b4b30936fc149c">0x731b43e5…149c</a></td></tr><tr><td>$50 envelope sent, sender paid $0.25 fee on top into the gas fund</td><td class="mono"><a style="color:inherit" href="https://explorer.test.mezo.org/tx/0xccff6b05b52011c02268086a7e1affe806c2143018a6ab34a804bdf2d5b8246d">0xccff6b05…246d</a></td></tr><tr><td>Claimed with $0 gas; relayer paid back $0.05 from the gas fund</td><td class="mono"><a style="color:inherit" href="https://explorer.test.mezo.org/tx/0xe9eb48df7d509afc4f4d87a56a856896898dfff2bf7e2867ad328c62610ca093">0xe9eb48df…a093</a></td></tr><!--PROOF_MORE--></table>
   <div class="foot"><span>Envelope</span><span>08</span></div>
 </section>
 
@@ -247,8 +247,8 @@
       <li>Loan-health guard refuses risky borrows.</li>
     </ul>
     <div class="card">
-      <div class="stat"><em>__TESTS__</em></div>
-      <p>tests: unit, fuzz, invariant and a fork test against Mezo's real contracts.</p>
+      <div class="stat"><em>220</em></div>
+      <p>passing tests: 184 contract (unit, fuzz, invariant, attacks), 5 fork tests against Mezo's live contracts, 31 web.</p>
       <p class="src">Contracts verified on the Mezo explorer · threat model in docs/</p>
     </div>
   </div>
