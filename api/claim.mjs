@@ -1,9 +1,11 @@
 // Relayer: submits claimFor(id, recipient, sig) and pays the gas.
+// Body: { id, recipient, signature, v? }. v = 2 claims from EnvelopeV2 (ESCROW_ADDRESS_V2), otherwise LinkEscrow (V1).
 // It never holds user money. It never logs the request body or any key.
 import {
   JsonRpcProvider, Wallet, Contract, isAddress, getAddress,
-  verifyTypedData, Signature, parseEther,
+  verifyTypedData, Signature, parseEther, recoverAddress,
 } from "ethers";
+import { ESCROW_V2_ABI } from "../public/js/abi-v2.js";
 
 const CHAIN_ID = 31611;
 const EXPLORER_TX = "https://explorer.test.mezo.org/tx/";
@@ -11,6 +13,7 @@ const MAX_BODY = 2048;
 const HALF_N = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0n;
 const MIN_GAS_BALANCE = parseEther("0.0005");
 const MAX_GAS_LIMIT = 250000n;
+const MAX_GAS_LIMIT_V2 = 300000n; // V2 also pays the relayer reward from gasFund
 
 export const ESCROW_ABI = [
   "function create(address link, uint256 amount, string note) returns (uint256 id)",
@@ -53,17 +56,17 @@ const MIN_SPONSORED_AMOUNT = 10n ** 16n; // 0.01 MUSD
 const STATUS_FOR = { NotFound: 404, AlreadyClaimed: 409, AlreadyRefunded: 410, Expired: 410, BadSignature: 400, ZeroRecipient: 400 };
 
 // ---- lazy context (nothing is built at import time, so missing env never crashes) ----
-let ctx = null;
-function getCtx() {
-  if (ctx) return ctx;
+const ctxs = {};
+function getCtx(version) {
+  if (ctxs[version]) return ctxs[version];
   const pk = process.env.RELAYER_PRIVATE_KEY;
-  const escrowAddr = process.env.ESCROW_ADDRESS;
-  if (!pk || !escrowAddr || !isAddress(escrowAddr)) return null;
+  const escrowAddr = version === 2 ? process.env.ESCROW_ADDRESS_V2 : process.env.ESCROW_ADDRESS;
+  if (!pk || !escrowAddr || !isAddress(escrowAddr) || BigInt(escrowAddr) === 0n) return null;
   const provider = new JsonRpcProvider(process.env.RPC_URL || "https://rpc.test.mezo.org", CHAIN_ID, { staticNetwork: true });
   const wallet = new Wallet(pk, provider);
-  const escrow = new Contract(getAddress(escrowAddr), ESCROW_ABI, wallet);
-  ctx = { provider, wallet, escrow, escrowAddr: getAddress(escrowAddr) };
-  return ctx;
+  const escrow = new Contract(getAddress(escrowAddr), version === 2 ? ESCROW_V2_ABI : ESCROW_ABI, wallet);
+  ctxs[version] = { provider, wallet, escrow, escrowAddr: getAddress(escrowAddr) };
+  return ctxs[version];
 }
 
 // ---- rate limit: 5 / 60s per IP, 60 / 60s per instance (best effort) ----
@@ -142,18 +145,21 @@ export default async function handler(req, res) {
   const idRaw = data && (typeof data.id === "string" || typeof data.id === "number") ? String(data.id) : "";
   const recipientRaw = data && typeof data.recipient === "string" ? data.recipient : "";
   const signature = data && typeof data.signature === "string" ? data.signature : "";
+  const vRaw = data?.v ?? 1;
+  if (vRaw !== 1 && vRaw !== 2 && vRaw !== "1" && vRaw !== "2") return fail(res, 400, "BadInput");
+  const version = Number(vRaw);
   if (!/^\d{1,12}$/.test(idRaw) || !isAddress(recipientRaw) || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
     return fail(res, 400, "BadInput");
   }
   const id = BigInt(idRaw);
   const recipient = getAddress(recipientRaw);
 
-  const c = getCtx();
+  const c = getCtx(version);
   if (!c) return fail(res, 503, "NotConfigured");
   const { provider, wallet, escrow, escrowAddr } = c;
 
   // 4. in-flight lock
-  const key = id.toString();
+  const key = `${version}:${id}`;
   if (inFlight.has(key)) return fail(res, 409, "InFlight");
   inFlight.add(key);
   try {
@@ -169,8 +175,10 @@ export default async function handler(req, res) {
 
     // 6. signature precheck (same rules as the contract)
     try {
-      const domain = { name: "LinkEscrow", version: "1", chainId: CHAIN_ID, verifyingContract: escrowAddr };
-      const signer = verifyTypedData(domain, TYPES, { id, recipient }, signature);
+      // V1: the known LinkEscrow domain. V2: the contract's own claimDigest, so its domain can't drift from ours.
+      const signer = version === 2
+        ? recoverAddress(await escrow.claimDigest(id, recipient), signature)
+        : verifyTypedData({ name: "LinkEscrow", version: "1", chainId: CHAIN_ID, verifyingContract: escrowAddr }, TYPES, { id, recipient }, signature);
       const s = BigInt("0x" + signature.slice(66, 130));
       if (s > HALF_N || getAddress(signer) !== getAddress(d.link)) return fail(res, 400, "BadSignature");
       Signature.from(signature); // throws on a malformed v
@@ -194,7 +202,7 @@ export default async function handler(req, res) {
     // 9. send
     const gas = await escrow.claimFor.estimateGas(id, recipient, signature);
     const gasLimit = (gas * 13n) / 10n;
-    if (gasLimit > MAX_GAS_LIMIT) return fail(res, 500, "Internal");
+    if (gasLimit > (version === 2 ? MAX_GAS_LIMIT_V2 : MAX_GAS_LIMIT)) return fail(res, 500, "Internal");
     let tx;
     try {
       tx = await escrow.claimFor(id, recipient, signature, { gasLimit });
@@ -205,7 +213,7 @@ export default async function handler(req, res) {
       await escrow.claimFor.staticCall(id, recipient, signature);
       tx = await escrow.claimFor(id, recipient, signature, { gasLimit });
     }
-    console.log("claim sent", { id: key, recipient, txHash: tx.hash });
+    console.log("claim sent", { id: key, version, recipient, txHash: tx.hash });
     return send(res, 200, { ok: true, txHash: tx.hash, explorerUrl: EXPLORER_TX + tx.hash });
   } catch (e) {
     // 10. anything unexpected

@@ -1,4 +1,5 @@
-import { APPNAME, CHAIN, ESCROW_ADDRESS, MUSD, ESCROW_ABI, ERC20_ABI, STORE } from "./config.js";
+import { APPNAME, CHAIN, ESCROW_ADDRESS, ESCROW_ADDRESS_V2, MUSD, ESCROW_ABI, ERC20_ABI, STORE, MEZO, MEZO_ABI } from "./config.js";
+import { ESCROW_V2_ABI } from "./abi-v2.js";
 
 export const ethers = globalThis.ethers;
 
@@ -14,6 +15,7 @@ export const ERRORS = {
   Cancelled: "You cancelled. Nothing was sent.",
   SendFailed: "That didn't go through. Your money hasn't moved. Please try again.",
   NotConfigured: `${APPNAME} isn't fully set up yet. Please try again a little later.`,
+  BorrowCancelled: "You cancelled. Nothing was borrowed and nothing was sent.",
 };
 
 // ---------- DOM ----------
@@ -127,6 +129,14 @@ export function readProvider() {
 }
 export const escrowConfigured = () => !!ESCROW_ADDRESS && ethers.isAddress(ESCROW_ADDRESS);
 export const escrowRead = () => new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, readProvider());
+// V2 is "configured" once ESCROW_ADDRESS_V2 is a real, non-zero address.
+export const v2Configured = () => !!ESCROW_ADDRESS_V2 && ethers.isAddress(ESCROW_ADDRESS_V2) && BigInt(ESCROW_ADDRESS_V2) !== 0n;
+export const escrowV2Read = () => new ethers.Contract(ESCROW_ADDRESS_V2, ESCROW_V2_ABI, readProvider());
+// The contract for a link version (1 = LinkEscrow, 2 = EnvelopeV2).
+export const escrowAddressFor = (v) => (v === 2 ? ESCROW_ADDRESS_V2 : ESCROW_ADDRESS);
+export const escrowAbiFor = (v) => (v === 2 ? ESCROW_V2_ABI : ESCROW_ABI);
+export const escrowReadFor = (v) => (v === 2 ? escrowV2Read() : escrowRead());
+export const mezoRead = (name) => new ethers.Contract(MEZO[name], MEZO_ABI[name], readProvider());
 export const musdRead = () => new ethers.Contract(MUSD, ERC20_ABI, readProvider());
 export async function latestTimestamp() {
   const b = await readProvider().getBlock("latest");
@@ -239,7 +249,8 @@ export function sentLinksFor(account) {
 export function saveSentLink(account, link) {
   const all = load(STORE.sentLinks, {});
   const k = account.toLowerCase();
-  const list = (all[k] || []).filter((l) => String(l.id) !== String(link.id));
+  const v = link.v || 1; // ids restart at 1 on each contract, so a link is (version, id)
+  const list = (all[k] || []).filter((l) => !(String(l.id) === String(link.id) && (l.v || 1) === v));
   list.push(link);
   all[k] = list;
   return save(STORE.sentLinks, all);

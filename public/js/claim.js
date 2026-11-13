@@ -1,6 +1,6 @@
-import { CHAIN, ESCROW_ADDRESS, STORE, STATUS, CLAIM_TYPES } from "./config.js";
+import { CHAIN, ESCROW_ADDRESS, STORE, STATUS, CLAIM_TYPES, V2_LINK_PREFIX } from "./config.js";
 import {
-  ethers, h, render, busy, notice, applyAppName, escrowConfigured, escrowRead, musdRead, readProvider,
+  ethers, h, render, busy, notice, applyAppName, escrowConfigured, escrowReadFor, v2Configured, musdRead, readProvider,
   latestTimestamp, fmtUsd, fmtUsdShort, fmtMusd, timeLeft, shortAddr, copyText, load, save, hasWallet, connect,
   isRejected, ERRORS,
 } from "./common.js";
@@ -25,10 +25,14 @@ function getOrCreateLocalWallet() {
   return rec;
 }
 
+// Links: V1 "#<id>.<key>", V2 "#v2-<id>.<key>". v = 2 when marked, null when unmarked (V1 first, then V2).
 function parseHash() {
-  const m = location.hash.slice(1).match(/^(\d{1,12})\.([0-9a-fA-F]{64})$/);
-  return m ? { id: BigInt(m[1]), pk: "0x" + m[2] } : null;
+  const m = location.hash.slice(1).match(/^(v2-)?(\d{1,12})\.([0-9a-fA-F]{64})$/);
+  return m ? { v: m[1] ? 2 : null, id: BigInt(m[2]), pk: "0x" + m[3] } : null;
 }
+// Claims remembered on this phone. V1 keys stay "<id>" so older claims still show.
+const claimKey = (v, id) => (v === 2 ? `v2:${id}` : String(id));
+const claimedPath = (v, id) => `/c#${v === 2 ? V2_LINK_PREFIX : ""}${id}`;
 
 function errorCard(text, retry) {
   return h("section", { class: "card" },
@@ -41,28 +45,35 @@ function errorCard(text, retry) {
 async function start() {
   renderWallet(false);
   const parsed = parseHash();
-  const idOnly = location.hash.slice(1).match(/^(\d{1,12})$/);
-  if (!parsed && idOnly) return showAlreadyMine(BigInt(idOnly[1]));
+  const idOnly = location.hash.slice(1).match(/^(v2-)?(\d{1,12})$/);
+  if (!parsed && idOnly) return showAlreadyMine(idOnly[1] ? 2 : 1, BigInt(idOnly[2]));
   if (!parsed) return render(root, errorCard(ERRORS.BadInput));
-  if (!escrowConfigured()) return render(root, errorCard(ERRORS.NotConfigured));
+  if (!escrowConfigured() || (parsed.v === 2 && !v2Configured())) return render(root, errorCard(ERRORS.NotConfigured));
+
+  let linkAddr;
+  try { linkAddr = new ethers.Wallet(parsed.pk).address; } catch { return render(root, errorCard(ERRORS.BadSignature)); }
 
   render(root, busy("Opening your money..."));
-  let d, note, now;
+  // Which contract holds it: the marked one, or V1 then V2. The key must match the envelope's link either way.
+  const versions = parsed.v === 2 ? [2] : v2Configured() ? [1, 2] : [1];
+  let d, note, now, exists = false;
   try {
-    const [[dep, n], ts] = await Promise.all([escrowRead().getDeposit(parsed.id), latestTimestamp()]);
-    d = dep; note = n; now = ts;
+    now = await latestTimestamp();
+    for (const v of versions) {
+      const [dep, n] = await escrowReadFor(v).getDeposit(parsed.id);
+      if (Number(dep.status) === STATUS.None) continue;
+      exists = true;
+      if (ethers.getAddress(dep.link) === linkAddr) { d = dep; note = n; parsed.v = v; break; }
+    }
   } catch {
     return render(root, errorCard(ERRORS.Network, start));
   }
+  if (!d) return render(root, errorCard(exists ? ERRORS.BadSignature : ERRORS.NotFound));
 
   const status = Number(d.status);
-  if (status === STATUS.None) return render(root, errorCard(ERRORS.NotFound));
-  if (status === STATUS.Claimed) return showClaimed(parsed.id);
+  if (status === STATUS.Claimed) return showClaimed(parsed.v, parsed.id);
   if (status === STATUS.Refunded) return render(root, errorCard("This link has expired and the money went back to the sender."));
   if (now >= BigInt(d.expiresAt)) return render(root, errorCard("This link has expired. The sender can take the money back. Ask them to send a new one."));
-  let linkAddr;
-  try { linkAddr = new ethers.Wallet(parsed.pk).address; } catch { linkAddr = null; }
-  if (!linkAddr || linkAddr !== ethers.getAddress(d.link)) return render(root, errorCard(ERRORS.BadSignature));
 
   showReady(parsed, d, note, now);
 }
@@ -95,6 +106,7 @@ function showReady(parsed, d, note, now, errorText) {
         h("span", { class: "pill-ok" }, "Money secured and ready"),
         h("p", { class: "big-amount", "aria-label": `${fmtUsd(amount)} in digital dollars` }, fmtUsd(amount)),
         approx,
+        feeLine(parsed.v, amount),
         errorText ? notice("error", errorText) : null,
         h("button", { class: "btn btn-primary btn-claim", type: "button", "data-autofocus": true,
           onclick: () => doClaim(parsed, d, note, now, "local") },
@@ -110,6 +122,13 @@ function showReady(parsed, d, note, now, errorText) {
     ),
     h("p", { class: "claim-foot" }, "Free for you · 7-day claim window · Tip: open in Chrome or Safari to keep your wallet"),
   );
+}
+
+// Fee transparency: who paid what, in one plain line.
+function feeLine(v, amount) {
+  return h("p", { class: "fee-line-claim" }, v === 2
+    ? `The sender paid a small 0.5% fee on top, so the full ${fmtUsd(amount)} is yours. Claiming is free.`
+    : "No fees: the sender covered everything. Claiming is free.");
 }
 
 async function doClaim(parsed, d, note, now, mode) {
@@ -128,8 +147,14 @@ async function doClaim(parsed, d, note, now, mode) {
   render(root, busy("Claiming... this takes a few seconds."));
   let sig;
   try {
-    const domain = { name: "LinkEscrow", version: "1", chainId: CHAIN.id, verifyingContract: ESCROW_ADDRESS };
-    sig = await new ethers.Wallet(parsed.pk).signTypedData(domain, CLAIM_TYPES, { id: parsed.id, recipient });
+    if (parsed.v === 2) {
+      // V2: sign the contract's own claim digest, so the EIP-712 domain can never drift from the contract.
+      const digest = await escrowReadFor(2).claimDigest(parsed.id, recipient);
+      sig = new ethers.Wallet(parsed.pk).signingKey.sign(digest).serialized;
+    } else {
+      const domain = { name: "LinkEscrow", version: "1", chainId: CHAIN.id, verifyingContract: ESCROW_ADDRESS };
+      sig = await new ethers.Wallet(parsed.pk).signTypedData(domain, CLAIM_TYPES, { id: parsed.id, recipient });
+    }
   } catch {
     return showReady(parsed, d, note, now, ERRORS.BadSignature);
   }
@@ -139,33 +164,34 @@ async function doClaim(parsed, d, note, now, mode) {
     res = await fetch("/api/claim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: parsed.id.toString(), recipient, signature: sig }),
+      body: JSON.stringify({ id: parsed.id.toString(), recipient, signature: sig, v: parsed.v === 2 ? 2 : 1 }),
     });
     body = await res.json().catch(() => ({}));
   } catch {
     return showReady(parsed, d, note, now, ERRORS.Network);
   }
   if (!res.ok || !body.ok) {
-    if (body.code === "AlreadyClaimed") return showClaimed(parsed.id);
+    if (body.code === "AlreadyClaimed") return showClaimed(parsed.v, parsed.id);
     return showReady(parsed, d, note, now, body.error || "Something went wrong on our side. Your money is safe in the link. Please try again in a minute.");
   }
 
   // Remember this claim on this phone so reopening the link can say "It's in your wallet".
   const claims = load(STORE.claims, {});
-  claims[parsed.id.toString()] = { recipient, txHash: body.txHash };
+  const ck = claimKey(parsed.v, parsed.id);
+  claims[ck] = { recipient, txHash: body.txHash };
   save(STORE.claims, claims);
 
   render(root, busy("Almost there... confirming on the network."));
   try {
     const receipt = await readProvider().waitForTransaction(body.txHash, 1, 60000);
     if (receipt && receipt.status !== 1) {
-      delete claims[parsed.id.toString()]; save(STORE.claims, claims);
+      delete claims[ck]; save(STORE.claims, claims);
       return showReady(parsed, d, note, now, "That didn't go through. Your money is safe in the link. Please try again.");
     }
   } catch { /* timed out: the tx was broadcast, show success with the explorer link */ }
 
-  history.replaceState(null, "", "/c#" + parsed.id);
-  showDone(d.amount, recipient, body.txHash || null, mode);
+  history.replaceState(null, "", claimedPath(parsed.v, parsed.id));
+  showDone(d.amount, recipient, body.txHash || null, mode, parsed.v);
 }
 
 async function balanceLine(addr) {
@@ -176,14 +202,24 @@ async function balanceLine(addr) {
   return p;
 }
 
-async function showDone(amount, recipient, txHash, mode) {
+// Growth loop: the person who just got money is the best next sender.
+function sendForwardCard() {
+  return h("section", { class: "card forward-card" },
+    h("h2", {}, "Know someone who'd love this?"),
+    h("p", { class: "muted" }, "Send dollars to anyone with a link, the same way you just got yours. They don't need an app either."),
+    h("a", { class: "btn btn-primary", href: "/?from=claim" }, "Send it forward"),
+  );
+}
+
+async function showDone(amount, recipient, txHash, mode, v) {
   render(root, h("section", { class: "card done" },
     h("p", { class: "big-amount", "aria-hidden": "true" }, fmtUsd(amount)),
     h("h1", {}, `${fmtUsdShort(amount)} is yours.`),
     await balanceLine(recipient),
     h("p", { class: "muted small" }, "Sent to ", h("code", {}, shortAddr(recipient))),
+    feeLine(v, amount),
     txHash ? h("a", { class: "btn btn-secondary", href: `${CHAIN.explorer}/tx/${txHash}`, target: "_blank", rel: "noopener noreferrer" }, "View on explorer") : null,
-  ));
+  ), sendForwardCard());
   confetti();
   root.append(await cashOutCard(amount));
   if (mode === "local") renderWallet(true, "Keep this money safe: save your recovery phrase.");
@@ -211,22 +247,22 @@ async function cashOutCard(amount) {
   );
 }
 
-async function showClaimed(id) {
-  const rec = load(STORE.claims, {})[id.toString()];
+async function showClaimed(v, id) {
+  const rec = load(STORE.claims, {})[claimKey(v, id)];
   if (!rec) return render(root, errorCard(ERRORS.AlreadyClaimed));
   render(root, h("section", { class: "card done" },
     h("h1", {}, "This money has already been claimed."),
     h("p", { class: "lead" }, "It's in your wallet."),
     await balanceLine(rec.recipient),
     rec.txHash ? h("a", { class: "btn btn-secondary", href: `${CHAIN.explorer}/tx/${rec.txHash}`, target: "_blank", rel: "noopener noreferrer" }, "View on explorer") : null,
-  ));
+  ), sendForwardCard());
 }
 
-async function showAlreadyMine(id) {
-  // URL is "/c#<id>" after a successful claim (key already removed).
-  const rec = load(STORE.claims, {})[id.toString()];
+async function showAlreadyMine(v, id) {
+  // URL is "/c#<id>" (or "/c#v2-<id>") after a successful claim (key already removed).
+  const rec = load(STORE.claims, {})[claimKey(v, id)];
   if (!rec) return render(root, errorCard(ERRORS.BadInput));
-  return showClaimed(id);
+  return showClaimed(v, id);
 }
 
 // ---------- My wallet (only when a local wallet exists) ----------
