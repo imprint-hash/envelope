@@ -30,6 +30,9 @@ Wave 2 transactions are listed in [`docs/PROOF.md`](docs/PROOF.md). The first on
 - EnvelopeV2 deployed and verified: [`0x731b43e5…`](https://explorer.test.mezo.org/tx/0x731b43e5b7bfb45f940bd0970fd31bb565f5e6ed8386bc57c5b4b30936fc149c)
 - $50 envelope sent; the sender paid the $0.25 fee on top into the gas fund: [`0xccff6b05…`](https://explorer.test.mezo.org/tx/0xccff6b05b52011c02268086a7e1affe806c2143018a6ab34a804bdf2d5b8246d)
 - Claimed with $0 gas; the relayer was paid back $0.05 from the gas fund: [`0xe9eb48df…`](https://explorer.test.mezo.org/tx/0xe9eb48df7d509afc4f4d87a56a856896898dfff2bf7e2867ad328c62610ca093)
+- Mezo loan: borrowed 20.1 MUSD against BTC via `withdrawMUSDWithSignature` (relayer paid gas, sender signed): [`0x1dcd6c48…`](https://explorer.test.mezo.org/tx/0x1dcd6c488bde2e988effd742ff0137a6ee91367dc883cf6e39493dbd99d8905f)
+- "Pay from my Bitcoin": $20 envelope via `createFor` (permit + CreateFor signature, fee to gas fund, relayer paid back): [`0x0103df33…`](https://explorer.test.mezo.org/tx/0x0103df33cf59763c010dff9b09b6833d5c6622224a6240b54a3be08c45724fa6)
+- "Keep it earning": claimed straight into a Mezo Pools MUSD/mUSDC LP position via `claimWithOption` (mode EARN): [`0xccc82664…`](https://explorer.test.mezo.org/tx/0xccc8266439135fc8bee0046bb1d91a12c5063934f17b48c5e10051100a1eb7fb)
 
 Wave 1: envelope #1 created ([`0xf6f3b976…`](https://explorer.test.mezo.org/tx/0xf6f3b97655d491f7075631c9317bf2cb457932c4bb926c72cdc5bcb4f59eff5c)) and claimed by a brand-new phone wallet ([`0x120b9ca5…`](https://explorer.test.mezo.org/tx/0x120b9ca57a235ab7432f89164956139f0e675f6406aa2e7d7e45d98a48addcb3)).
 
