@@ -50,6 +50,23 @@
         <div class="env"><div class="back"></div><div class="letter"><div><b>$50.00</b><span>Happy birthday Mum</span></div></div><div class="bottom"></div><div class="front"></div><div class="flap"></div></div>
       </div>
     </section>
+    <section class="facts" aria-label="Cost, safety and live numbers">
+      <div class="cost card">
+        <p class="kick">What sending $50 home costs</p>
+        <div class="cost-rows">
+          <div class="cost-row"><span>Average money-transfer service</span><b>$4.23</b><small>8.46%</small></div>
+          <div class="cost-row cost-us"><span>Envelope</span><b>$0.25</b><small>0.5%</small></div>
+        </div>
+        <p class="cost-src">Average cost of sending money to Sub-Saharan Africa: World Bank Remittance Prices Worldwide, Q3 2025. With Envelope you pay the 0.5% on top, so they receive the full $50.</p>
+      </div>
+      <ul class="trust" aria-label="Why your money is safe">
+        <li><a href="https://explorer.test.mezo.org/address/0x06b4B5A507FDb61d6d082007ab48aD76B26dFa26#code" target="_blank" rel="noopener noreferrer"><b>Verified contract</b><span>Open source on the Mezo explorer</span></a></li>
+        <li><a href="https://explorer.test.mezo.org/address/0x06b4B5A507FDb61d6d082007ab48aD76B26dFa26#code" target="_blank" rel="noopener noreferrer"><b>No admin keys</b><span>Nobody can move your money, not even us</span></a></li>
+        <li><a href="#faq-refund"><b>7-day refund</b><span>Not claimed? It comes back to you</span></a></li>
+        <li><a href="https://github.com/imprint-hash/envelope/actions/workflows/test.yml" target="_blank" rel="noopener noreferrer"><b>220 tests</b><span>Run on every change, including on Mezo's live contracts</span></a></li>
+      </ul>
+      <a class="live" href="/stats" id="live"><span class="live-dot" aria-hidden="true"></span><span id="live-text">Live on Mezo testnet</span><span class="live-go">See live numbers →</span></a>
+    </section>
     <div class="send-grid">
       <div id="app" class="app" aria-live="polite">
         <noscript><p class="card">Please turn on JavaScript to use this page.</p></noscript>
@@ -67,6 +84,16 @@
         </section>
       </aside>
     </div>
+    <section class="faq" id="faq" aria-labelledby="faq-title">
+      <p class="kick">Questions</p>
+      <h2 id="faq-title">Before you send</h2>
+      <details><summary>What is MUSD?</summary><p>MUSD is Mezo's dollar, backed by Bitcoin and designed to stay worth $1. This demo runs on Mezo testnet, so the MUSD here is test money with no cash value.</p></details>
+      <details id="faq-refund"><summary>What if they never claim it?</summary><p>After 7 days the envelope can be refunded, and the refund always goes back to you. Anyone can trigger it, but nobody can send it anywhere else.</p></details>
+      <details><summary>Do they need a wallet or an app?</summary><p>No. When they tap Claim, a wallet is made for them in their browser. No app, no password, no sign-up. They can move the money to their own wallet later.</p></details>
+      <details><summary>Who pays the network fee?</summary><p>You pay 0.5% on top of what you send. That fee goes into a gas fund inside the contract, which pays our relayer back for the network fee. The person you send to receives every cent.</p></details>
+      <details><summary>What is the risk of paying from my Bitcoin?</summary><p>You borrow MUSD against your BTC on Mezo, and Mezo adds a 0.1% borrowing fee to your loan. If the BTC price falls and your loan drops below Mezo's 110% line, your Bitcoin can be sold to repay it. We show your loan health before and after, and we block any send that would take you below 120%.</p></details>
+      <details><summary>Can someone else take the money?</summary><p>Anyone who has the link can claim it, like cash in an envelope. Only share it with the person it's for.</p></details>
+    </section>
   </main>
   <footer class="site-foot">
     <div class="foot-in">
@@ -82,5 +109,6 @@
   </footer>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js" integrity="sha384-6Zl0Pc8zjSz8KvmNeXRvUQgY4ryFb+BwDvKCmLYcBME0joAaru491tQgi9B7zsMM" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="module" src="/js/send.js"></script>
+  <script type="module" src="/js/home-live.js"></script>
 </body>
 </html>
