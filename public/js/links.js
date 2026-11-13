@@ -48,6 +48,13 @@ async function showLinks(account) {
       remove(STORE.pendingKey);
     }
   }
+  // Once an envelope is claimed or refunded its link key is worthless: drop it from this browser's storage.
+  for (const r of rows) {
+    const st = Number(r.d.status);
+    if (st !== STATUS.Claimed && st !== STATUS.Refunded) continue;
+    const saved = sentLinksFor(account).find((l) => String(l.id) === String(r.id) && (l.v || 1) === r.v);
+    if (saved && saved.url) { const { url, ...rest } = saved; saveSentLink(account, rest); }
+  }
   const urls = new Map(sentLinksFor(account).map((l) => [`${l.v || 1}:${l.id}`, l.url]));
 
   if (rows.length === 0) {

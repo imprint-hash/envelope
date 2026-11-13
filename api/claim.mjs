@@ -18,6 +18,7 @@ const MAX_GAS_LIMIT = 250000n;
 const MAX_GAS_LIMIT_V2 = 300000n; // V2 also pays the relayer reward from gasFund
 const MAX_GAS_LIMIT_OPTION = 1000000n; // swap (+ addLiquidity) through the Mezo Pools router
 const MAX_OPTION_DEADLINE_AHEAD = 60 * 60; // the page signs ~10 minutes ahead; refuse anything over an hour
+const MIN_OPTION_DEADLINE_AHEAD = 120;
 
 export const ESCROW_ABI = [
   "function create(address link, uint256 amount, string note) returns (uint256 id)",
@@ -94,7 +95,8 @@ export function parseClaimInput(data, nowSec) {
   const minOut = BigInt(minOutRaw), deadline = BigInt(deadlineRaw);
   if (minOut === 0n) return bad(); // the page always sends a real quote minus 1%
   const now = BigInt(nowSec);
-  if (deadline < now) return bad("SignatureExpired");
+  // At least 2 minutes left, so a tx that passes simulation can't expire on its way into a block.
+  if (deadline < now + BigInt(MIN_OPTION_DEADLINE_AHEAD)) return bad("SignatureExpired");
   if (deadline > now + BigInt(MAX_OPTION_DEADLINE_AHEAD)) return bad();
   value.option = { mode, minOut, deadline };
   return { value };

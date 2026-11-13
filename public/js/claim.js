@@ -183,7 +183,8 @@ async function postClaim(payload, parsed, back) {
     return null;
   }
   if (!res.ok || !body.ok) {
-    if (body.code === "AlreadyClaimed") showClaimed(parsed.v, parsed.id);
+    // Someone may have relayed this same signed claim first: it still pays the same wallet, so check before showing an error.
+    if (body.code === "AlreadyClaimed" || (await isClaimed(parsed))) showClaimed(parsed.v, parsed.id);
     else back(body.error || "Something went wrong on our side. Your money is safe in the link. Please try again in a minute.");
     return null;
   }
@@ -201,7 +202,7 @@ async function finishClaim(parsed, d, note, now, mode, recipient, body, option, 
   render(root, busy("Almost there... confirming on the network."));
   try {
     const receipt = await readProvider().waitForTransaction(body.txHash, 1, 60000);
-    if (receipt && receipt.status !== 1) {
+    if (receipt && receipt.status !== 1 && !(await isClaimed(parsed))) {
       delete claims[ck]; save(STORE.claims, claims);
       return back("That didn't go through. Your money is safe in the link. Please try again.");
     }
@@ -358,6 +359,13 @@ async function cashOutCard(amount) {
     h("button", { class: "btn btn-secondary", type: "button", disabled: !r.live }, r.live ? `Cash out with ${r.partner}` : "Available with mainnet MUSD"),
     r.live ? null : h("p", { class: "muted small" }, r.message),
   );
+}
+
+async function isClaimed(parsed) {
+  try {
+    const [d] = await escrowReadFor(parsed.v).getDeposit(parsed.id);
+    return Number(d.status) === STATUS.Claimed;
+  } catch { return false; }
 }
 
 async function showClaimed(v, id) {

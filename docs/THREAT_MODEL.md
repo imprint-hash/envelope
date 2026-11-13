@@ -76,3 +76,23 @@ A refund returns `amount`; the fee is kept (it already paid for gas).
 - **The split is not exactly half.** The MUSD/mUSDC pool is unbalanced on testnet (≈ 2.8 MUSD per mUSDC in reserves), so swapping half would leave most of the swapped mUSDC unused. The contract swaps the router's own `quoteStableLiquidityRatio` share instead (≈ 31% today); on the fork, unused dust was 0 MUSD and 0.002327 mUSDC for a $50 envelope.
 - **Pools fork test note.** Mezo's BTC token (`0x7b7c…0000`) is a chain precompile whose balance is the native BTC balance. Forge can't run it, so `EnvelopeV2Pools.fork.t.sol` puts a stand-in at that address with exactly that behaviour (`balanceOf(a) == a.balance`, transfers move native BTC); the MUSD/BTC pool's reserves are its real forked balance. The router, factory, both pools, MUSD and mUSDC run their real testnet code. The sender's MUSD there comes from `deal` (the borrow path is covered by `EnvelopeV2.fork.t.sol`).
 - **Fork test note.** Mezo's BTC price oracle is a chain precompile (`0x7b7c…0015`) that Forge's EVM cannot execute. The fork test fetches the oracle's real `latestRoundData()`/`decimals()` answer from the Mezo RPC at the fork block (`vm.rpc`) and serves that exact answer locally. Every other call, and every signature (Mezo WithdrawMUSD, MUSD permit, Envelope CreateFor, Claim), is real.
+
+## Independent pressure test (13 Nov 2026)
+
+A separate report-only review attacked the contract on a local Mezo fork and probed the live relayers (19 requests, none sent a transaction). **No critical or high findings:** only the link holder can take an envelope, envelope money can't be locked, signatures can't be replayed across functions, contracts or chains, and the relayer key never leaks.
+
+**Fixed the same day (web and relayer only):**
+- A note containing half an emoji (a lone UTF-16 surrogate) crashed `/api/borrow-send` with a 500. It is now rejected as bad input (`test/node/pressure-fixes.test.mjs`).
+- If Mezo is slow, borrow-send could hit Vercel's 60 s limit after the loan landed, and the page said "your money hasn't moved". The waits are shorter (30 s + 10 s), a still-confirming borrow returns `BorrowPending`, and the page now asks the chain (Mezo nonce, Envelope nonce, `idsOf`/`getDeposit`) before showing any error, so it says exactly where the money is.
+- If someone else relays the same signed `createFor` or claim first, our own transaction reverts but the envelope or claim succeeded. Both the relayer and the page now re-read the chain and report success.
+- Claim options must have at least 2 minutes until their deadline, so a transaction that passes simulation can't expire in transit.
+- A sender's saved link (which contains the link key) is deleted from their browser once the envelope is claimed or refunded.
+
+**Accepted for this wave (contract changes need a redeploy, planned before mainnet):**
+- MUSD sent straight to the contract (not through `create`) can't be recovered: `sweepSurplus` only moves `gasFund`. Plan: track `totalOpen` and sweep `balance − totalOpen − gasFund` to the treasury.
+- After `sweepSurplus`, the flat 5 MUSD buffer can be smaller than the rewards still owed on open envelopes, so some later relays go unpaid (users are never affected). Plan: never sweep below the outstanding rewards.
+- For envelopes of $20 or less, a sender who relays their own envelope earns back their whole fee. Revenue comes from envelopes above $20 and from the gas fund surplus.
+- `quote(type(uint256).max)` reverts with an overflow panic instead of `AmountTooLarge` (message only).
+- A sender can make the relayer pay for a borrow and then move the MUSD before `createFor` runs. At Mezo gas prices this costs ~4e-10 BTC per attempt. Plan: one helper contract that borrows and creates in a single transaction.
+- EARN/GAS_TIP swaps are protected by the final `minOut` (quote − 1%), not by a minimum on the inner swap. Plan: inner minimum and ~0.3% slippage for the stable pool.
+- The relayer rate limit is per serverless instance (best effort). Header spoofing does not bypass it.

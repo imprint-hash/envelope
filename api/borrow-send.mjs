@@ -25,8 +25,8 @@ const MAX_AMOUNT = 100_000n * 10n ** 18n;    // $100,000
 const MAX_NOTE_BYTES = 140;
 const MAX_DEADLINE_AHEAD = 86_400;           // signatures may live at most a day
 const MIN_DEADLINE_AHEAD = 60;               // and must leave us a minute to land both txs
-const WAIT_BORROW_MS = 40_000;
-const WAIT_CREATE_MS = 15_000;
+const WAIT_BORROW_MS = 30_000;   // keep the whole request well under Vercel's 60 s limit
+const WAIT_CREATE_MS = 10_000;   // if slower, the page waits for the envelope itself
 
 export const SAFETY_FLOOR_ICR = SAFETY_FLOOR; // 1.20e18, re-exported for tests
 
@@ -91,6 +91,7 @@ const MSG = {
   TooLarge: "That request was too big. Please try again.",
   NotConfigured: "Paying from Bitcoin isn't switched on yet. You can pay with MUSD for now.",
   BorrowTooHeavy: "Mezo's network is busy and this loan would cost too much gas right now. Nothing was borrowed. Please try again in a few minutes, or pay with MUSD.",
+  BorrowPending: "Your loan is still confirming on Mezo. The money goes to your own wallet, never anywhere else. Check Sent links in a minute before trying again.",
   Internal: "Something went wrong on our side. Nothing was borrowed. Please try again in a minute.",
 };
 
@@ -117,6 +118,7 @@ export function validateInput(data, now) {
   if (amt > MAX_AMOUNT) return bad("TooBig");
 
   if (typeof note !== "string") return bad();
+  if (/\p{Surrogate}/u.test(note)) return bad(); // half an emoji: can't be hashed the way the wallet signed it
   if (Buffer.byteLength(note, "utf8") > MAX_NOTE_BYTES) return bad("NoteTooLong");
   if (!isHex(noteHash, 32) || noteHash.toLowerCase() !== keccak256(toUtf8Bytes(note)).toLowerCase()) return bad();
 
@@ -243,6 +245,19 @@ function reason(e, iface) {
   return e?.code || null;
 }
 
+// After a revert or timeout: did the sender's envelope for this link get created anyway (e.g. by a front-runner)?
+async function findEnvelope(escrow, sender, link, envNonceBefore) {
+  try {
+    if ((await escrow.nonces(sender)) <= envNonceBefore) return null;
+    const ids = await escrow.idsOf(sender);
+    for (let i = ids.length - 1; i >= 0 && i >= ids.length - 5; i--) {
+      const [d] = await escrow.getDeposit(ids[i]);
+      if (getAddress(d.link) === getAddress(link)) return { id: ids[i].toString(), amount: d.amount.toString() };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
 const usd = (wei) => "$" + Number(formatUnits(wei, 18)).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 // Send with one retry on nonce trouble (two relayer calls racing), re-simulating first so a retry never burns gas.
@@ -277,7 +292,8 @@ export default async function handler(req, res) {
   // 3. input shape (deadlines checked against chain time)
   let block;
   try { block = await provider.getBlock("latest"); } catch { return fail(res, 502, "Internal"); }
-  const checked = validateInput(data, block.timestamp);
+  let checked;
+  try { checked = validateInput(data, block.timestamp); } catch { return fail(res, 400, "BadInput"); }
   if (checked.code) return fail(res, checked.status, checked.code);
   const v = checked.value;
 
@@ -359,8 +375,13 @@ export default async function handler(req, res) {
     const btx = await sendTx(bos.withdrawMUSDWithSignature, borrowArgs, borrowLimit);
     borrowTx = btx.hash;
     console.log("borrow sent", { sender: v.sender, txHash: borrowTx });
-    const brc = await provider.waitForTransaction(borrowTx, 1, WAIT_BORROW_MS);
-    if (!brc || brc.status !== 1) {
+    const brc = await provider.waitForTransaction(borrowTx, 1, WAIT_BORROW_MS).catch(() => null);
+    if (!brc) {
+      // Still confirming: don't call it a failure. The page checks Mezo itself and tells the user where the money is.
+      console.error("borrow still pending", { sender: v.sender, txHash: borrowTx });
+      return fail(res, 202, "BorrowPending", { borrowTx, borrowExplorerUrl: EXPLORER_TX + borrowTx });
+    }
+    if (brc.status !== 1) {
       console.error("borrow failed on chain", { sender: v.sender, txHash: borrowTx });
       return fail(res, 502, "BorrowRejected", { borrowTx });
     }
@@ -383,7 +404,12 @@ export default async function handler(req, res) {
     try {
       const crc = await provider.waitForTransaction(ctx2.hash, 1, WAIT_CREATE_MS);
       if (!crc) pending = true;
-      else if (crc.status !== 1) return fail(res, 502, "CreateFailedAfterBorrow", { borrowTx, createTx: ctx2.hash });
+      else if (crc.status !== 1) {
+        // Someone may have relayed the same signed createFor first: then the envelope exists and this is a success.
+        const found = await findEnvelope(escrow, v.sender, v.link, envNonce);
+        if (!found) return fail(res, 502, "CreateFailedAfterBorrow", { borrowTx, createTx: ctx2.hash });
+        id = found.id; net = found.amount;
+      }
       else {
         for (const log of crc.logs) {
           if (getAddress(log.address) !== escrowAddr) continue;

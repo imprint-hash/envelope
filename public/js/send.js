@@ -442,7 +442,20 @@ async function doSendFromBitcoin(account, amount, note, name = "") {
     if (poll) { clearInterval(poll); poll = null; }
 
     if (!res?.ok || !body.ok) {
-      if (body.code === "CreateFailedAfterBorrow") draft.method = "musd"; // the money is in their wallet now
+      // The server can stop after the loan went through (slow network, timeout). Ask the chain before saying anything.
+      const unsure = !res || res.status >= 500 || res.status === 202 || !body.code;
+      if (unsure || body.code === "CreateFailedAfterBorrow") {
+        render(root, busy("Checking Mezo to see where your money is..."));
+        const where = await whereIsMyMoney(account, mezoNonce, envNonce, linkKey.address, unsure ? 12 : 1);
+        if (where.envelope) {
+          return finish(account, { v: 2, id: BigInt(where.envelope.id), amount, fee, pk: linkKey.privateKey, note, name,
+            hash: body.createTx || null, borrowTx: body.borrowTx });
+        }
+        if (where.borrowed) {
+          draft.method = "musd"; // the money is in their own wallet now
+          return showForm(account, "Your loan went through and the money is safe in your own wallet, but the envelope wasn't created. Nothing is lost: send it now with \"Pay with my MUSD\".");
+        }
+      }
       return showForm(account, body.error || ERRORS.SendFailed);
     }
 
@@ -459,6 +472,26 @@ async function doSendFromBitcoin(account, amount, note, name = "") {
     if (poll) clearInterval(poll);
     showForm(account, isRejected(e) ? ERRORS.BorrowCancelled : ERRORS.SendFailed);
   }
+}
+
+// Did Mezo use the borrow signature, and did our contract create the envelope for this link? Polls a few times.
+async function whereIsMyMoney(account, mezoNonce, envNonce, link, tries) {
+  const out = { borrowed: false, envelope: null };
+  for (let t = 0; t < tries; t++) {
+    try {
+      const env = escrowReadFor(2);
+      out.borrowed = out.borrowed || (await mezoRead("borrowerOpsSignatures").getNonce(account)) > mezoNonce;
+      if ((await env.nonces(account)) > envNonce) {
+        const ids = await env.idsOf(account);
+        for (let i = ids.length - 1; i >= 0 && i >= ids.length - 5; i--) {
+          const [d] = await env.getDeposit(ids[i]);
+          if (ethers.getAddress(d.link) === ethers.getAddress(link)) { out.envelope = { id: ids[i].toString() }; return out; }
+        }
+      }
+    } catch { /* RPC hiccup: try again */ }
+    if (t < tries - 1) await new Promise((r) => setTimeout(r, 5000));
+  }
+  return out;
 }
 
 function finish(account, { v, id, amount, fee, pk, note, name, hash, borrowTx }) {
