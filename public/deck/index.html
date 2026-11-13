@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Envelope — Wave 2 deck</title>
+<meta name="description" content="Envelope: send dollars to anyone's WhatsApp. Built on Mezo with MUSD.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #0a0a0c; --panel: #121216; --panel-2: #1a1a20; --line: #2a2a33;
+    --pink: #ff0a5c; --pink-2: #ff4f8a; --pink-soft: #ff0a5c22; --cream: #f6f2ee; --muted: #a3a1ad;
+    --ok: #5fe3a1; --warn: #ffb870; --err: #ff8f86;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-snap-type: y mandatory; }
+  body { background: var(--bg); color: var(--cream); font-family: Manrope, system-ui, sans-serif; }
+  .slide { position: relative; height: 100vh; min-height: 640px; scroll-snap-align: start; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center; padding: 6vh 7vw;
+    background: radial-gradient(1100px 600px at 75% 115%, #ff0a5c33, transparent 70%),
+                radial-gradient(900px 500px at 5% 110%, #ff4f8a14, transparent 70%),
+                radial-gradient(1200px 700px at 50% -25%, #1d1520, transparent 70%), var(--bg); }
+  .slide::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(#ffffff07 1px, transparent 1px), linear-gradient(90deg, #ffffff07 1px, transparent 1px);
+    background-size: 64px 64px; }
+  .slide > * { position: relative; z-index: 2; }
+  h1, h2, .h { font-family: Outfit, sans-serif; font-weight: 700; letter-spacing: -.035em; line-height: 1.02; text-wrap: balance; }
+  h1 { font-size: clamp(56px, 8vw, 132px); }
+  h2 { font-size: clamp(38px, 4.6vw, 76px); margin-bottom: 28px; }
+  em { font-style: normal; color: var(--pink); }
+  .kick { font: 500 clamp(13px, 1.1vw, 18px) "IBM Plex Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--pink); margin-bottom: 18px; }
+  p, li { font-size: clamp(17px, 1.45vw, 25px); line-height: 1.5; color: #d9d6d2; }
+  .muted { color: var(--muted); }
+  ul { padding: 0; list-style: none; display: grid; gap: 14px; }
+  li { position: relative; padding-left: 30px; }
+  li::before { content: ""; position: absolute; left: 0; top: .55em; width: 12px; height: 12px; border-radius: 3px; background: var(--pink); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4vw; align-items: center; }
+  .card { background: linear-gradient(160deg, #1c1219, #111014); border: 1px solid #ffffff1c; border-radius: 26px; padding: 30px 34px;
+    box-shadow: 0 40px 120px #0009, inset 0 1px 0 #ffffff12; }
+  .stat { font-family: Outfit; font-weight: 800; font-size: clamp(64px, 7vw, 120px); letter-spacing: -.04em; line-height: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px; border: 1px solid #ffffff26; background: #ffffff0b;
+    font: 600 clamp(14px, 1.1vw, 19px) Manrope; margin: 6px 8px 0 0; }
+  .pill i { width: 10px; height: 10px; border-radius: 3px; background: var(--pink); }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  table { border-collapse: collapse; width: 100%; font-size: clamp(14px, 1.15vw, 20px); }
+  td, th { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 13px "IBM Plex Mono"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  td.mono { color: var(--pink-2); }
+  .foot { position: absolute; left: 7vw; right: 7vw; bottom: 3.2vh; display: flex; justify-content: space-between;
+    font: 500 13px "IBM Plex Mono"; letter-spacing: .1em; color: #6f6c78; z-index: 3; }
+  .src { font-size: 13px; color: #7b7884; margin-top: 18px; font-family: "IBM Plex Mono"; }
+
+  /* drifting envelopes in the background (replaces Alibi's glass tiles) */
+  .drift { position: absolute; width: 150px; height: 104px; z-index: 1; opacity: .55; animation: drift 18s ease-in-out infinite alternate; }
+  .drift svg { width: 100%; height: 100%; }
+  @keyframes drift { to { transform: translate(30px, -26px) rotate(var(--r2, 8deg)); } }
+
+  /* hero envelope: flap opens, letter rises */
+  .env { width: min(440px, 36vw); aspect-ratio: 1.45; position: relative; perspective: 1200px; filter: drop-shadow(0 40px 80px #ff0a5c40); }
+  .env .back { position: absolute; inset: 0; border-radius: 18px; background: linear-gradient(160deg, #ff2a6f, #c30046); }
+  .env .letter { position: absolute; left: 8%; right: 8%; top: 10%; height: 78%; border-radius: 12px; background: var(--cream);
+    color: #0a0a0c; display: grid; place-items: center; text-align: center; animation: rise 5.5s ease-in-out infinite; }
+  .env .letter b { font: 800 clamp(34px, 3.4vw, 58px) Outfit; letter-spacing: -.03em; display: block; }
+  .env .letter span { font: 500 clamp(12px, 1vw, 16px) "IBM Plex Mono"; letter-spacing: .1em; text-transform: uppercase; color: #6b2a43; }
+  .env .front { position: absolute; inset: 0; border-radius: 18px; overflow: hidden; }
+  .env .front::before, .env .front::after { content: ""; position: absolute; bottom: 0; width: 60%; height: 100%; background: #e00a52; }
+  .env .front::before { left: 0; clip-path: polygon(0 0, 100% 62%, 0 100%); background: #f2195f; }
+  .env .front::after { right: 0; clip-path: polygon(100% 0, 0 62%, 100% 100%); background: #e00a52; }
+  .env .bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; background: #ff3b77; clip-path: polygon(0 100%, 50% 8%, 100% 100%); border-radius: 0 0 18px 18px; }
+  .env .flap { position: absolute; left: 0; right: 0; top: 0; height: 60%; background: #ff5a8e; clip-path: polygon(0 0, 100% 0, 50% 100%);
+    transform-origin: top; animation: flap 5.5s ease-in-out infinite; z-index: 3; }
+  @keyframes flap { 0%, 12% { transform: rotateX(0deg); } 30%, 78% { transform: rotateX(178deg); } 96%, 100% { transform: rotateX(0deg); } }
+  @keyframes rise { 0%, 22% { transform: translateY(0); } 40%, 70% { transform: translateY(-46%); } 88%, 100% { transform: translateY(0); } }
+  .env .letter { z-index: 1; } .env .front, .env .bottom { z-index: 2; }
+
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 10px; }
+  .step { background: var(--panel); border: 1px solid #ffffff17; border-radius: 20px; padding: 24px; }
+  .step .n { font: 600 14px "IBM Plex Mono"; color: var(--pink); letter-spacing: .1em; }
+  .step h3 { font: 700 clamp(20px, 1.7vw, 28px) Outfit; margin: 10px 0 8px; letter-spacing: -.02em; }
+  .step p { font-size: clamp(15px, 1.15vw, 19px); }
+  .meter { height: 18px; border-radius: 999px; background: linear-gradient(90deg, var(--err) 0 15%, var(--warn) 15% 45%, var(--ok) 45% 100%); position: relative; margin: 26px 0 40px; }
+  .meter .mk { position: absolute; top: -8px; width: 3px; height: 34px; background: var(--cream); }
+  .meter .lbl { position: absolute; top: 30px; transform: translateX(-50%); font: 500 13px "IBM Plex Mono"; color: var(--muted); white-space: nowrap; }
+
+  @media (max-width: 860px) { .cols, .flow { grid-template-columns: 1fr; } .env { width: 70vw; } .drift { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .drift, .env .flap, .env .letter { animation: none; } }
+  @page { size: 1920px 1080px; margin: 0; }
+  @media print {
+    html { scroll-snap-type: none; }
+    .slide { height: 1080px; width: 1920px; page-break-after: always; padding: 70px 130px; }
+    .env .flap { animation: none; transform: rotateX(178deg); } .env .letter { animation: none; transform: translateY(-46%); }
+    .drift { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 1 · title -->
+<section class="slide">
+  <div class="drift" style="left:6%;top:9%;--r2:-10deg;transform:rotate(-12deg)">__ENV__</div>
+  <div class="drift" style="right:8%;top:6%;--r2:14deg;transform:rotate(16deg) scale(.8)">__ENV__</div>
+  <div class="drift" style="right:5%;bottom:10%;--r2:-6deg;transform:rotate(-20deg) scale(1.1)">__ENV__</div>
+  <div class="cols">
+    <div>
+      <div class="kick">Mezo Buildathon · Wave 2</div>
+      <h1>Envelope</h1>
+      <p style="margin-top:22px;font-size:clamp(22px,2vw,34px)">Send dollars to anyone's <em>WhatsApp</em>.<br>Even if they've never used crypto.</p>
+      <div style="margin-top:28px"><span class="pill"><i></i>MUSD on Mezo</span><span class="pill"><i></i>Bitcoin-backed</span><span class="pill"><i></i>Live on testnet</span></div>
+    </div>
+    <div style="display:grid;place-items:center">
+      <div class="env"><div class="back"></div><div class="letter"><div><b>$50.00</b><span>for mum's groceries</span></div></div><div class="bottom"></div><div class="front"></div><div class="flap"></div></div>
+    </div>
+  </div>
+  <div class="foot"><span>envelope.vercel.app</span><span>01</span></div>
+</section>
+
+<!-- 2 · problem -->
+<section class="slide">
+  <div class="kick">The problem</div>
+  <div class="cols">
+    <div>
+      <div class="stat"><em>8.46%</em></div>
+      <p style="margin-top:14px">Average cost of sending $200 to Sub-Saharan Africa: the most expensive region in the world. Global average 6.36%. The UN target is under 3% by 2030.</p>
+      <p class="src">World Bank, Remittance Prices Worldwide, Issue 54 (Q3 2025)</p>
+    </div>
+    <div class="card">
+      <h2 style="font-size:clamp(28px,2.6vw,44px)">Crypto could fix it. <em>But</em>…</h2>
+      <ul>
+        <li>The person receiving needs a wallet.</li>
+        <li>They need the right network.</li>
+        <li>They need BTC just to pay the gas.</li>
+        <li>The people we most want to reach have none of these.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>02</span></div>
+</section>
+
+<!-- 3 · solution -->
+<section class="slide">
+  <div class="kick">The solution</div>
+  <h2>A link is all they need.</h2>
+  <div class="flow">
+    <div class="step"><div class="n">01 · SEND</div><h3>Lock MUSD</h3><p>The sender locks dollars in the Envelope contract and gets a link.</p></div>
+    <div class="step"><div class="n">02 · SHARE</div><h3>WhatsApp it</h3><p>The link opens on any phone. The secret lives in the link, never on a server.</p></div>
+    <div class="step"><div class="n">03 · CLAIM</div><h3>One tap</h3><p>A wallet is made in the browser. Our relayer pays the gas. No app, no sign-up.</p></div>
+    <div class="step"><div class="n">04 · SAFE</div><h3>Or it comes back</h3><p>Not claimed in 7 days? It returns to the sender automatically.</p></div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>03</span></div>
+</section>
+
+<!-- 4 · new: send from your bitcoin -->
+<section class="slide">
+  <div class="kick">New in Wave 2</div>
+  <div class="cols">
+    <div>
+      <h2>Send from your <em>Bitcoin</em>.<br>3 signatures. $0 gas.</h2>
+      <ul>
+        <li>Borrow MUSD against your BTC on Mezo and send it as an envelope, in one flow.</li>
+        <li>You sign; our relayer submits Mezo's <span class="mono">withdrawMUSDWithSignature</span>. Mezo lends, Envelope locks it.</li>
+        <li>You never need BTC for gas.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="kick" style="margin-bottom:6px">Loan-health guard</div>
+      <p class="muted">Live BTC price · your collateral ratio before → after · Mezo's lines</p>
+      <div class="meter">
+        <div class="mk" style="left:15%"></div><div class="lbl" style="left:15%">110% liquidation</div>
+        <div class="mk" style="left:25%"></div><div class="lbl" style="left:25%;top:-26px">120% our floor</div>
+        <div class="mk" style="left:45%"></div><div class="lbl" style="left:45%">150% Mezo safe</div>
+      </div>
+      <p><b style="color:var(--ok)">Safe</b> sends go through. <b style="color:var(--warn)">Risky</b> ones warn you. <b style="color:var(--err)">Blocked</b> below 120% or in recovery mode.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>04</span></div>
+</section>
+
+<!-- 5 · integration -->
+<section class="slide">
+  <div class="kick">Deep Mezo integration</div>
+  <h2>We call Mezo's protocol, not just its token.</h2>
+  <table>
+    <tr><th>Mezo contract</th><th>What Envelope uses</th><th>Why</th></tr>
+    <tr><td>BorrowerOperationsSignatures</td><td class="mono">withdrawMUSDWithSignature · getNonce</td><td>Gasless borrow-to-send</td></tr>
+    <tr><td>BorrowerOperations</td><td class="mono">getBorrowingFee · borrowingRate · MCR · CCR</td><td>Exact cost and safety lines</td></tr>
+    <tr><td>TroveManager</td><td class="mono">getTroveStatus · getEntireDebtAndColl · getCurrentICR · checkRecoveryMode</td><td>Loan-health guard</td></tr>
+    <tr><td>PriceFeed</td><td class="mono">fetchPrice</td><td>Live BTC price</td></tr>
+    <tr><td>Mezo Pools</td><td class="mono">__POOLS__</td><td>__POOLSWHY__</td></tr>
+    <tr><td>MUSD</td><td class="mono">EIP-2612 permit · transfers</td><td>One-signature funding</td></tr>
+  </table>
+  <div class="foot"><span>Envelope</span><span>05</span></div>
+</section>
+
+<!-- 6 · business -->
+<section class="slide">
+  <div class="kick">Business model</div>
+  <div class="cols">
+    <div>
+      <h2>Gas that <em>pays for itself</em>.</h2>
+      <ul>
+        <li><b>0.5% fee, paid by the sender on top.</b> The recipient always gets exactly what was promised.</li>
+        <li>The fee lands in an on-chain gas fund. The relayer is paid back automatically, per transaction. No outside sponsor, no admin keys.</li>
+        <li>On Mezo a claim costs a tiny fraction of a cent in BTC gas. The rest is revenue.</li>
+        <li><span class="muted">Next:</span> off-ramp revenue share from partners who turn MUSD into naira, cedis and shillings.</li>
+      </ul>
+    </div>
+    <div class="card" style="text-align:center">
+      <p class="muted">You send $50.00</p>
+      <div class="stat" style="font-size:clamp(48px,5vw,88px);margin:10px 0"><em>$0.25</em></div>
+      <p class="muted">fee (0.5%) · you pay $50.25 · they receive $50.00</p>
+      <p class="src">vs 8.46% average to Sub-Saharan Africa</p>
+    </div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>06</span></div>
+</section>
+
+<!-- 7 · growth -->
+<section class="slide">
+  <div class="kick">Growth loop</div>
+  <h2>Every claim makes a new <em>MUSD</em> holder.</h2>
+  <div class="flow" style="grid-template-columns:repeat(3,1fr)">
+    <div class="step"><div class="n">REACH</div><h3>WhatsApp-native</h3><p>Links travel where people already talk. No app store, no onboarding.</p></div>
+    <div class="step"><div class="n">CONVERT</div><h3>Claim = new holder</h3><p>Each claim puts MUSD in a brand-new wallet on Mezo.</p></div>
+    <div class="step"><div class="n">LOOP</div><h3>Send it forward</h3><p>After claiming, one tap to send your own envelope. Every borrow-to-send adds BTC-backed MUSD supply.</p></div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>07</span></div>
+</section>
+
+<!-- 8 · proof -->
+<section class="slide">
+  <div class="kick">Proof, on-chain</div>
+  <h2>It works. Check it yourself.</h2>
+  <table>__PROOF__</table>
+  <div class="foot"><span>Envelope</span><span>08</span></div>
+</section>
+
+<!-- 9 · safety -->
+<section class="slide">
+  <div class="kick">Built safely</div>
+  <div class="cols">
+    <ul>
+      <li>EIP-712 signatures bound to the contract, chain, envelope and recipient. Nobody can redirect a claim.</li>
+      <li>The link key lives only in the URL fragment, never sent to a server.</li>
+      <li>No owner, no admin keys. Fee capped in code. Surplus can only go to the fixed treasury.</li>
+      <li>Loan-health guard refuses risky borrows.</li>
+    </ul>
+    <div class="card">
+      <div class="stat"><em>__TESTS__</em></div>
+      <p>tests: unit, fuzz, invariant and a fork test against Mezo's real contracts.</p>
+      <p class="src">Contracts verified on the Mezo explorer · threat model in docs/</p>
+    </div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>09</span></div>
+</section>
+
+<!-- 10 · roadmap -->
+<section class="slide">
+  <div class="kick">Roadmap</div>
+  <h2>From testnet to every family chat.</h2>
+  <div class="flow">
+    <div class="step"><div class="n">NEXT</div><h3>Mainnet</h3><p>Real MUSD, real savings: claim straight into Mezo's MUSD Savings Vault.</p></div>
+    <div class="step"><div class="n">THEN</div><h3>Cash-out partners</h3><p>Naira, cedis, shillings, with an off-ramp revenue share.</p></div>
+    <div class="step"><div class="n">THEN</div><h3>Group envelopes</h3><p>Weddings, birthdays, owambe: many senders, one link.</p></div>
+    <div class="step"><div class="n">LATER</div><h3>Recurring support</h3><p>Monthly family support, borrowed against BTC you keep.</p></div>
+  </div>
+  <div class="foot"><span>Envelope</span><span>10</span></div>
+</section>
+
+<!-- 11 · team -->
+<section class="slide" style="text-align:center;align-items:center">
+  <div class="env" style="width:min(300px,30vw);margin-bottom:36px"><div class="back"></div><div class="letter"><div><b>Thank you</b></div></div><div class="bottom"></div><div class="front"></div><div class="flap"></div></div>
+  <h2 style="margin-bottom:12px">Envelope</h2>
+  <p>imprint</p>
+  <p class="mono" style="margin-top:18px;color:var(--pink)">envelope.vercel.app · github.com/imprint-hash/envelope</p>
+  <div class="foot"><span>Envelope</span><span>11</span></div>
+</section>
+
+<script>
+  // one inline envelope icon for the drifting background
+  const ICON = '<svg viewBox="0 0 150 104" fill="none"><rect x="1" y="1" width="148" height="102" rx="12" stroke="#ff4f8a66" stroke-width="2" fill="#ff0a5c0d"/><path d="M2 6 L75 60 L148 6" stroke="#ff4f8a88" stroke-width="2"/><path d="M2 100 L58 48 M148 100 L92 48" stroke="#ff4f8a44" stroke-width="2"/></svg>';
+  document.querySelectorAll('.drift').forEach(d => { d.innerHTML = ICON; });
+</script>
+</body>
+</html>
